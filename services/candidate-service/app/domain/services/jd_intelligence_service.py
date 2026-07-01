@@ -181,23 +181,24 @@ class JobIntelligenceService:
 
         # Find or create a matching logical parent JobORM in database
         db = self.jd_repo.db
-        recruiter_profile = db.query(orm.RecruiterProfileORM).first()
-        if not recruiter_profile:
-            # Seed default recruiter profile for connection
-            recruiter_profile = orm.RecruiterProfileORM(
+        recruiter = db.query(orm.RecruiterORM).first()
+        if not recruiter:
+            # Seed default recruiter for connection
+            recruiter = orm.RecruiterORM(
+                id=doc.user_id,
                 user_id=doc.user_id,
+                email="recruiter@techcorp.com",
                 company_name="Tech Corp",
-                company_website="techcorp.com",
-                bio="Technical recruitment managers."
+                password_hash="hashed_pw"
             )
-            db.add(recruiter_profile)
+            db.add(recruiter)
             db.commit()
 
         # Find if a JobORM is already linked to this document
         job_orm = db.query(orm.JobORM).filter(orm.JobORM.title == doc.name).first()
         if not job_orm:
             job_orm = orm.JobORM(
-                recruiter_id=recruiter_profile.user_id,
+                recruiter_id=recruiter.id,
                 title=doc.name,
                 description="Parsed job description details.",
                 experience_level="MID"
