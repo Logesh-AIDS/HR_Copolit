@@ -12,6 +12,7 @@ from app.adapter.db.document_repo import DocumentRepository
 from app.adapter.db.parser_repo import ParserRepository
 from app.adapter.parser.spacy_parser import ExtractorFactory, MockOcrProvider, TesseractOcrProvider
 from app.domain import parser_models
+from app.domain.services.document_service import get_storage_provider
 
 logger = logging.getLogger(__name__)
 

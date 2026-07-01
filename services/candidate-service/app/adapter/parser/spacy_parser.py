@@ -128,3 +128,64 @@ class ExtractorFactory:
             return TxtExtractor()
         else:
             raise ValueError(f"No text extractor matches extension: .{ext}")
+
+
+class ResumeParser:
+    """
+    Legacy compatibility wrapper for previous stage routing handlers.
+    """
+    def __init__(self):
+        self.skill_dictionary = [
+            "python", "golang", "go", "java", "c++", "rust", "typescript", "javascript",
+            "react", "next.js", "angular", "vue", "html", "css",
+            "kubernetes", "docker", "gvisor", "firecracker", "aws", "gcp", "azure",
+            "postgresql", "postgres", "mysql", "mongodb", "redis", "qdrant", "pinecone",
+            "grpc", "rest", "websockets", "kafka", "rabbitmq", "webrtc",
+            "machine learning", "nlp", "speech-to-text", "text-to-speech", "whisper",
+            "scikit-learn", "tensorflow", "pytorch", "transformers", "llm"
+        ]
+
+    def extract_text_from_pdf(self, file_bytes: bytes) -> str:
+        return PdfExtractor().extract_text(file_bytes)
+
+    def parse_resume(self, text: str) -> Dict[str, Any]:
+        text_lower = text.lower()
+        extracted_skills = []
+
+        for skill in self.skill_dictionary:
+            pattern = r'\b' + re.escape(skill) + r'\b'
+            if re.search(pattern, text_lower):
+                extracted_skills.append(skill)
+
+        email_match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', text)
+        email = email_match.group(0) if email_match else "unknown@candidate.com"
+
+        phone_match = re.search(r'\+?\d[\d -]{8,12}\d', text)
+        phone = phone_match.group(0) if phone_match else ""
+
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        name = lines[0] if lines else "Candidate Name"
+        name_parts = name.split()
+        first_name = name_parts[0] if len(name_parts) > 0 else "Candidate"
+        last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else "User"
+
+        return {
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": email,
+            "skills": extracted_skills,
+            "phone": phone
+        }
+
+    def calculate_match_score(self, candidate_skills: List[str], job_description: str) -> float:
+        if not candidate_skills:
+            return 0.0
+
+        jd_lower = job_description.lower()
+        matched_skills = 0
+
+        for skill in candidate_skills:
+            if skill in jd_lower:
+                matched_skills += 1
+
+        return round((matched_skills / len(candidate_skills)) * 100, 2)
