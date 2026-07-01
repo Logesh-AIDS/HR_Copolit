@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY services/grading-service/requirements.txt /workspace/requirements.txt
 RUN pip install --no-cache-dir -r /workspace/requirements.txt
-RUN pip install --no-cache-dir email-validator pydantic-settings redis SQLAlchemy psycopg2-binary bcrypt python-jose passlib
+RUN pip install --no-cache-dir email-validator pydantic-settings redis SQLAlchemy psycopg2-binary bcrypt python-jose passlib docx2txt pytesseract
 
 COPY services/common /workspace/services/common
 COPY services/grading-service /workspace/services/grading-service
