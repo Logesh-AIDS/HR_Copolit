@@ -1,6 +1,6 @@
 # services/candidate-service/app/adapter/db/orm.py
 import uuid
-from sqlalchemy import Column, String, Text, ForeignKey, DateTime, Integer, Numeric, Boolean, Table, JSON
+from sqlalchemy import Column, String, Text, ForeignKey, DateTime, Integer, Numeric, Boolean, Table, JSON, BigInteger
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -206,7 +206,7 @@ class DocumentVersionORM(Base):
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     version = Column(Integer, nullable=False)
     file_hash = Column(String(64), nullable=False)
-    file_size = Column(sa.BigInteger().with_variant(sa.Integer(), "sqlite"), nullable=False)
+    file_size = Column(BigInteger().with_variant(Integer(), "sqlite"), nullable=False)
     mime_type = Column(String(100), nullable=False)
     original_name = Column(String(255), nullable=False)
     storage_path = Column(String(512), nullable=False)
