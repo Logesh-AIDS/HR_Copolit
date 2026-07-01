@@ -12,6 +12,18 @@ from app.adapter.vector.qdrant_repo import QdrantRepository
 from app.domain import models
 
 router = APIRouter(prefix="/api/v1")
+
+# Mount Authentication and Identity Management sub-routers
+from app.delivery.http.auth_router import router as auth_router
+from app.delivery.http.profile_router import router as profile_router
+from app.delivery.http.session_router import router as session_router
+from app.delivery.http.admin_router import router as admin_router
+
+router.include_router(auth_router)
+router.include_router(profile_router)
+router.include_router(session_router)
+router.include_router(admin_router)
+
 parser = ResumeParser()
 vector_db = QdrantRepository()
 
