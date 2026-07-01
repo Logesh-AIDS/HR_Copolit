@@ -1,6 +1,6 @@
 # services/candidate-service/app/adapter/db/orm.py
 import uuid
-from sqlalchemy import Column, String, Text, ForeignKey, DateTime, Integer, Numeric, Boolean, Table, JSON, BigInteger
+from sqlalchemy import Column, String, Text, ForeignKey, DateTime, Integer, Numeric, Boolean, Table, JSON, BigInteger, Float
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -225,4 +225,127 @@ class DocumentActivityLogORM(Base):
     action = Column(String(100), nullable=False)
     ip_address = Column(String(45), nullable=True)
     details = Column(JSONB().with_variant(JSON, "sqlite"), default={}, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ParsedResumeORM(Base):
+    __tablename__ = "parsed_resumes"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    first_name = Column(String(100), nullable=True)
+    last_name = Column(String(100), nullable=True)
+    email = Column(String(255), nullable=True)
+    phone = Column(String(50), nullable=True)
+    location = Column(String(255), nullable=True)
+    github = Column(String(255), nullable=True)
+    linkedin = Column(String(255), nullable=True)
+    portfolio = Column(String(255), nullable=True)
+    status = Column(String(50), nullable=False)
+    raw_text = Column(Text, nullable=True)
+    parsing_confidence = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    sections = relationship("ResumeSectionORM", back_populates="parsed_resume", cascade="all, delete-orphan")
+    skills = relationship("ExtractedSkillORM", back_populates="parsed_resume", cascade="all, delete-orphan")
+    experience = relationship("ExperienceORM", back_populates="parsed_resume", cascade="all, delete-orphan")
+    education = relationship("EducationORM", back_populates="parsed_resume", cascade="all, delete-orphan")
+    projects = relationship("ProjectORM", back_populates="parsed_resume", cascade="all, delete-orphan")
+    certifications = relationship("CertificationORM", back_populates="parsed_resume", cascade="all, delete-orphan")
+    languages = relationship("LanguageORM", back_populates="parsed_resume", cascade="all, delete-orphan")
+
+
+class ResumeSectionORM(Base):
+    __tablename__ = "resume_sections"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    parsed_resume_id = Column(UUID(as_uuid=True), ForeignKey("parsed_resumes.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(100), nullable=False)
+    content = Column(Text, nullable=True)
+
+    # Relationships
+    parsed_resume = relationship("ParsedResumeORM", back_populates="sections")
+
+
+class ExtractedSkillORM(Base):
+    __tablename__ = "extracted_skills"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    parsed_resume_id = Column(UUID(as_uuid=True), ForeignKey("parsed_resumes.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(100), nullable=False)
+    category = Column(String(100), nullable=False)
+
+    # Relationships
+    parsed_resume = relationship("ParsedResumeORM", back_populates="skills")
+
+
+class ExperienceORM(Base):
+    __tablename__ = "experience"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    parsed_resume_id = Column(UUID(as_uuid=True), ForeignKey("parsed_resumes.id", ondelete="CASCADE"), nullable=False)
+    company = Column(String(255), nullable=True)
+    job_title = Column(String(255), nullable=True)
+    start_date = Column(String(50), nullable=True)
+    end_date = Column(String(50), nullable=True)
+    description = Column(Text, nullable=True)
+    duration_months = Column(Integer, default=0, server_default="0", nullable=False)
+
+    # Relationships
+    parsed_resume = relationship("ParsedResumeORM", back_populates="experience")
+
+
+class EducationORM(Base):
+    __tablename__ = "education"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    parsed_resume_id = Column(UUID(as_uuid=True), ForeignKey("parsed_resumes.id", ondelete="CASCADE"), nullable=False)
+    institution = Column(String(255), nullable=True)
+    degree = Column(String(255), nullable=True)
+    cgpa = Column(String(50), nullable=True)
+    graduation_year = Column(Integer, nullable=True)
+
+    # Relationships
+    parsed_resume = relationship("ParsedResumeORM", back_populates="education")
+
+
+class ProjectORM(Base):
+    __tablename__ = "projects"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    parsed_resume_id = Column(UUID(as_uuid=True), ForeignKey("parsed_resumes.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(255), nullable=True)
+    description = Column(Text, nullable=True)
+    technologies = Column(JSONB().with_variant(JSON, "sqlite"), default=[], nullable=False)
+
+    # Relationships
+    parsed_resume = relationship("ParsedResumeORM", back_populates="projects")
+
+
+class CertificationORM(Base):
+    __tablename__ = "certifications"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    parsed_resume_id = Column(UUID(as_uuid=True), ForeignKey("parsed_resumes.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(255), nullable=False)
+    issuing_organization = Column(String(255), nullable=True)
+    issue_date = Column(String(50), nullable=True)
+
+    # Relationships
+    parsed_resume = relationship("ParsedResumeORM", back_populates="certifications")
+
+
+class LanguageORM(Base):
+    __tablename__ = "languages"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    parsed_resume_id = Column(UUID(as_uuid=True), ForeignKey("parsed_resumes.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(100), nullable=False)
+    proficiency = Column(String(100), nullable=True)
+
+    # Relationships
+    parsed_resume = relationship("ParsedResumeORM", back_populates="languages")
+
+
+class ParsingLogORM(Base):
+    __tablename__ = "parsing_logs"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    log_level = Column(String(20), nullable=False)
+    message = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
