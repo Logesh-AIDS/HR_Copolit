@@ -3,7 +3,7 @@ import pytest
 import uuid
 import tempfile
 from pathlib import Path
-from services.common.exceptions import ValidationException, UnauthorizedException
+from services.common.exceptions import ValidationException, UnauthorizedException, NotFoundException
 from services.common.storage import LocalStorageProvider
 from app.adapter.db.document_repo import DocumentRepository
 from app.adapter.db import orm
