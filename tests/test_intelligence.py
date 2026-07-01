@@ -51,10 +51,10 @@ def test_skill_confidence_estimation(intel_service, db_session):
             parser_models.ExperienceDetail(
                 company="Tech Corp",
                 job_title="Lead Software Engineer",
-                start_date="2022-04",
+                start_date="2020-04",
                 end_date="Present",
                 description="Built cloud backend servers using Python and Kubernetes.",
-                duration_months=24
+                duration_months=75
             )
         ],
         education=[
