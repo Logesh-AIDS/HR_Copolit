@@ -20,6 +20,7 @@ from app.delivery.http.session_router import router as session_router
 from app.delivery.http.admin_router import router as admin_router
 from app.delivery.http.document_router import router as document_router
 from app.delivery.http.parser_router import router as parser_router
+from app.delivery.http.intelligence_router import router as intelligence_router
 
 router.include_router(auth_router)
 router.include_router(profile_router)
@@ -27,6 +28,7 @@ router.include_router(session_router)
 router.include_router(admin_router)
 router.include_router(document_router)
 router.include_router(parser_router)
+router.include_router(intelligence_router)
 
 parser = ResumeParser()
 vector_db = QdrantRepository()

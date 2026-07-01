@@ -349,3 +349,92 @@ class ParsingLogORM(Base):
     log_level = Column(String(20), nullable=False)
     message = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CandidateIntelligenceORM(Base):
+    __tablename__ = "candidate_intelligences"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    parsed_resume_id = Column(UUID(as_uuid=True), ForeignKey("parsed_resumes.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    career_level = Column(String(50), nullable=True)
+    career_focus = Column(String(255), nullable=True)
+    preferred_roles = Column(JSONB().with_variant(JSON, "sqlite"), default=[], nullable=False)
+    resume_completeness = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    experience_summary = relationship("ExperienceSummaryORM", back_populates="candidate_intelligence", uselist=False, cascade="all, delete-orphan")
+    skill_confidence = relationship("SkillConfidenceORM", back_populates="candidate_intelligence", cascade="all, delete-orphan")
+    features = relationship("FeatureStoreORM", back_populates="candidate_intelligence", uselist=False, cascade="all, delete-orphan")
+    strengths_weaknesses = relationship("CandidateStrengthWeaknessORM", back_populates="candidate_intelligence", cascade="all, delete-orphan")
+
+
+class ExperienceSummaryORM(Base):
+    __tablename__ = "experience_summaries"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    candidate_intelligence_id = Column(UUID(as_uuid=True), ForeignKey("candidate_intelligences.id", ondelete="CASCADE"), nullable=False)
+    total_experience_months = Column(Integer, default=0, server_default="0", nullable=False)
+    relevant_experience_months = Column(Integer, default=0, server_default="0", nullable=False)
+    leadership_experience_months = Column(Integer, default=0, server_default="0", nullable=False)
+    internship_experience_months = Column(Integer, default=0, server_default="0", nullable=False)
+    project_experience_months = Column(Integer, default=0, server_default="0", nullable=False)
+
+    # Relationships
+    candidate_intelligence = relationship("CandidateIntelligenceORM", back_populates="experience_summary")
+
+
+class SkillConfidenceORM(Base):
+    __tablename__ = "skill_confidence"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    candidate_intelligence_id = Column(UUID(as_uuid=True), ForeignKey("candidate_intelligences.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(100), nullable=False)
+    confidence_score = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    experience_years = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    project_count = Column(Integer, default=0, server_default="0", nullable=False)
+    recency_score = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    has_certification = Column(Boolean, default=False, server_default="false", nullable=False)
+
+    # Relationships
+    candidate_intelligence = relationship("CandidateIntelligenceORM", back_populates="skill_confidence")
+
+
+class FeatureStoreORM(Base):
+    __tablename__ = "feature_store"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    candidate_intelligence_id = Column(UUID(as_uuid=True), ForeignKey("candidate_intelligences.id", ondelete="CASCADE"), nullable=False)
+    skills_count = Column(Integer, default=0, server_default="0", nullable=False)
+    projects_count = Column(Integer, default=0, server_default="0", nullable=False)
+    avg_project_complexity = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    years_experience = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    education_score = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    certification_score = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    skill_diversity = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    tech_breadth = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    tech_depth = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    leadership_score = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    cloud_exposure = Column(Boolean, default=False, server_default="false", nullable=False)
+    deployment_experience = Column(Boolean, default=False, server_default="false", nullable=False)
+
+    # Relationships
+    candidate_intelligence = relationship("CandidateIntelligenceORM", back_populates="features")
+
+
+class CandidateStrengthWeaknessORM(Base):
+    __tablename__ = "candidate_strengths_weaknesses"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    candidate_intelligence_id = Column(UUID(as_uuid=True), ForeignKey("candidate_intelligences.id", ondelete="CASCADE"), nullable=False)
+    type = Column(String(50), nullable=False)
+    value = Column(Text, nullable=False)
+
+    # Relationships
+    candidate_intelligence = relationship("CandidateIntelligenceORM", back_populates="strengths_weaknesses")
+
+
+class TechnologyTaxonomyORM(Base):
+    __tablename__ = "technology_taxonomy"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    concept_name = Column(String(100), nullable=False)
+    parent_concept_name = Column(String(100), nullable=True)
+    relation_type = Column(String(100), nullable=False)
