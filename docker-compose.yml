@@ -1,4 +1,4 @@
- services:
+services:
   postgres:
     image: postgres:15-alpine
     container_name: hr-copilot-postgres
@@ -126,8 +126,10 @@
     volumes:
       - ./services/sandbox-runner:/app/services/sandbox-runner
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   postgres_data:

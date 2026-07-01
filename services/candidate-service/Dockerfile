@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy python dependencies list
 COPY services/candidate-service/requirements.txt /workspace/requirements.txt
 RUN pip install --no-cache-dir -r /workspace/requirements.txt
-RUN pip install --no-cache-dir email-validator pydantic-settings redis
+RUN pip install --no-cache-dir email-validator pydantic-settings redis bcrypt python-jose passlib
 
 # Copy source directories
 COPY services/common /workspace/services/common
