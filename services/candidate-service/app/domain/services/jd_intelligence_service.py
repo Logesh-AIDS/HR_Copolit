@@ -9,7 +9,7 @@ from services.common.storage import StorageProvider
 from app.adapter.db.document_repo import DocumentRepository
 from app.adapter.db.jd_intelligence_repo import JobIntelligenceRepository
 from app.adapter.parser.spacy_parser import ExtractorFactory
-from app.domain.services.intelligence_service import SKILL_TAXONOMY, SKILL_NORMALIZATION_MAP
+from app.domain.services.parser_service import SKILL_TAXONOMY, SKILL_NORMALIZATION_MAP
 from app.adapter.db import orm
 from app.domain import jd_intelligence_models
 
