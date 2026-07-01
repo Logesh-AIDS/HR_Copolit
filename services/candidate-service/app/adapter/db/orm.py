@@ -182,3 +182,47 @@ class AuditLogORM(Base):
     ip_address = Column(String(45), nullable=True)
     details = Column(JSONB().with_variant(JSON, "sqlite"), default={}, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class DocumentORM(Base):
+    __tablename__ = "documents"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    name = Column(String(255), nullable=False)
+    document_type = Column(String(50), nullable=False)
+    current_version = Column(Integer, default=1, server_default="1", nullable=False)
+    is_archived = Column(Boolean, default=False, server_default="false", nullable=False)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    versions = relationship("DocumentVersionORM", back_populates="document", order_by="DocumentVersionORM.version.desc()", cascade="all, delete-orphan")
+
+
+class DocumentVersionORM(Base):
+    __tablename__ = "document_versions"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    version = Column(Integer, nullable=False)
+    file_hash = Column(String(64), nullable=False)
+    file_size = Column(sa.BigInteger().with_variant(sa.Integer(), "sqlite"), nullable=False)
+    mime_type = Column(String(100), nullable=False)
+    original_name = Column(String(255), nullable=False)
+    storage_path = Column(String(512), nullable=False)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    document = relationship("DocumentORM", back_populates="versions")
+
+
+class DocumentActivityLogORM(Base):
+    __tablename__ = "document_activity_logs"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    action = Column(String(100), nullable=False)
+    ip_address = Column(String(45), nullable=True)
+    details = Column(JSONB().with_variant(JSON, "sqlite"), default={}, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

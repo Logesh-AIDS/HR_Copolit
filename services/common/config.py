@@ -41,6 +41,11 @@ class CommonSettings(BaseSettings):
     # Rate Limiting Settings (Requests per minute per IP)
     RATE_LIMIT_RPM: int = Field(default=60, validation_alias="RATE_LIMIT_RPM")
 
+    # Document Management & Storage Settings
+    STORAGE_PROVIDER: str = Field(default="local", validation_alias="STORAGE_PROVIDER")
+    LOCAL_STORAGE_DIR: str = Field(default="./storage", validation_alias="LOCAL_STORAGE_DIR")
+    MAX_FILE_SIZE_MB: int = Field(default=10, validation_alias="MAX_FILE_SIZE_MB")
+
     # Model Config
     model_config = SettingsConfigDict(
         env_file=".env",
