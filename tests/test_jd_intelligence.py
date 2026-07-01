@@ -9,6 +9,7 @@ from services.common.storage import LocalStorageProvider
 from app.adapter.db.document_repo import DocumentRepository
 from app.adapter.db.jd_intelligence_repo import JobIntelligenceRepository
 from app.domain.services.jd_intelligence_service import JobIntelligenceService
+from app.adapter.db import orm
 
 
 @pytest.fixture
