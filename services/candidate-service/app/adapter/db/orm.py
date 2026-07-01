@@ -438,3 +438,90 @@ class TechnologyTaxonomyORM(Base):
     concept_name = Column(String(100), nullable=False)
     parent_concept_name = Column(String(100), nullable=True)
     relation_type = Column(String(100), nullable=False)
+
+
+class JobIntelligenceORM(Base):
+    __tablename__ = "job_intelligences"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    job_id = Column(UUID(as_uuid=True), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="SET NULL"), nullable=True)
+    title = Column(String(255), nullable=True)
+    department = Column(String(100), nullable=True)
+    company = Column(String(255), nullable=True)
+    location = Column(String(255), nullable=True)
+    employment_type = Column(String(50), nullable=True)
+    experience_years_required = Column(Integer, default=0, server_default="0", nullable=False)
+    expected_seniority = Column(String(50), nullable=True)
+    interview_difficulty = Column(String(50), nullable=True)
+    education_requirements = Column(String(255), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    skills = relationship("JobRequiredSkillORM", back_populates="job_intelligence", cascade="all, delete-orphan")
+    responsibilities = relationship("JobResponsibilityORM", back_populates="job_intelligence", cascade="all, delete-orphan")
+    features = relationship("JobFeatureStoreORM", back_populates="job_intelligence", uselist=False, cascade="all, delete-orphan")
+    metadata_items = relationship("JobMetadataORM", back_populates="job_intelligence", cascade="all, delete-orphan")
+    audit_logs = relationship("JobAuditLogORM", back_populates="job_intelligence", cascade="all, delete-orphan")
+
+
+class JobRequiredSkillORM(Base):
+    __tablename__ = "job_required_skills"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    job_intelligence_id = Column(UUID(as_uuid=True), ForeignKey("job_intelligences.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(100), nullable=False)
+    category = Column(String(100), nullable=False)
+    is_mandatory = Column(Boolean, default=True, server_default="true", nullable=False)
+
+    # Relationships
+    job_intelligence = relationship("JobIntelligenceORM", back_populates="skills")
+
+
+class JobResponsibilityORM(Base):
+    __tablename__ = "job_responsibilities"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    job_intelligence_id = Column(UUID(as_uuid=True), ForeignKey("job_intelligences.id", ondelete="CASCADE"), nullable=False)
+    value = Column(Text, nullable=False)
+
+    # Relationships
+    job_intelligence = relationship("JobIntelligenceORM", back_populates="responsibilities")
+
+
+class JobFeatureStoreORM(Base):
+    __tablename__ = "job_feature_store"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    job_intelligence_id = Column(UUID(as_uuid=True), ForeignKey("job_intelligences.id", ondelete="CASCADE"), nullable=False)
+    required_skills_count = Column(Integer, default=0, server_default="0", nullable=False)
+    skill_diversity = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    required_experience = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    cloud_requirement = Column(Boolean, default=False, server_default="false", nullable=False)
+    leadership_requirement = Column(Boolean, default=False, server_default="false", nullable=False)
+    ai_requirement = Column(Boolean, default=False, server_default="false", nullable=False)
+    programming_depth = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    technology_breadth = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+
+    # Relationships
+    job_intelligence = relationship("JobIntelligenceORM", back_populates="features")
+
+
+class JobMetadataORM(Base):
+    __tablename__ = "job_metadata"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    job_intelligence_id = Column(UUID(as_uuid=True), ForeignKey("job_intelligences.id", ondelete="CASCADE"), nullable=False)
+    key = Column(String(100), nullable=False)
+    value = Column(Text, nullable=True)
+
+    # Relationships
+    job_intelligence = relationship("JobIntelligenceORM", back_populates="metadata_items")
+
+
+class JobAuditLogORM(Base):
+    __tablename__ = "job_audit_logs"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    job_intelligence_id = Column(UUID(as_uuid=True), ForeignKey("job_intelligences.id", ondelete="CASCADE"), nullable=False)
+    action = Column(String(100), nullable=False)
+    message = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    job_intelligence = relationship("JobIntelligenceORM", back_populates="audit_logs")
