@@ -37,6 +37,9 @@ app.include_router(webrtc_router, prefix="/api/v1")
 from app.delivery.http.collaboration_router import router as collaboration_router
 app.include_router(collaboration_router, prefix="/api/v1")
 
+from app.delivery.http.question_router import router as question_router
+app.include_router(question_router, prefix="/api/v1")
+
 # Security and request logs middlewares
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(RateLimitMiddleware)
@@ -72,6 +75,10 @@ from app.domain.services.webrtc_service import WebRTCService
 
 from app.adapter.db.collaboration_repo import CollaborationRepository
 from app.domain.services.collaboration_service import CollaborationService
+
+from app.adapter.db.question_repo import QuestionRepository
+from app.adapter.vector.question_qdrant_repo import QuestionQdrantRepository
+from app.domain.services.question_service import QuestionService
 
 class ConnectionManager:
     async def connect(self, websocket: WebSocket, token: str):
@@ -227,6 +234,33 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                 round_idx = session.runtime_state.current_round_index if session.runtime_state else 0
                 quest_idx = session.runtime_state.current_question_index if session.runtime_state else 0
                 
+                # Fetch next question dynamically using the Question Intelligence Engine
+                round_categories = ["MCQ", "Algorithms", "Machine Learning Concepts", "System Architecture Design", "Behavioral"]
+                cat = round_categories[min(round_idx, len(round_categories)-1)]
+                diff = session.runtime_state.current_difficulty if session.runtime_state else "MID"
+                
+                # Evaluate and log adaptive difficulty adjustments
+                quest_service = QuestionService(QuestionRepository(db), QuestionQdrantRepository())
+                try:
+                    diff = quest_service.adapt_difficulty(session_id, diff, score)
+                    if session.runtime_state:
+                        session.runtime_state.current_difficulty = diff
+                        db.commit()
+                except Exception as ex:
+                    logger.error(f"Failed to adapt difficulty: {ex}")
+                
+                question_text = f"Detail your solution for round {round_idx} question {quest_idx}."
+                try:
+                    q_orm = quest_service.get_next_question(
+                        session_id=session_id,
+                        skills=["Python", "Go", "Docker", "FastAPI"],
+                        category=cat,
+                        difficulty=diff
+                    )
+                    question_text = q_orm.problem_statement
+                except Exception as ex:
+                    logger.error(f"Failed to fetch next question from engine: {ex}")
+
                 # Trigger question running state in execution engine
                 try:
                     exec_service.start_question(session_id, quest_idx)
@@ -237,7 +271,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                     "event": "next_question",
                     "stage": round_idx,
                     "index": quest_idx,
-                    "question": f"Detail your solution for round {round_idx} question {quest_idx}.",
+                    "question": question_text,
                     "score_summary": score,
                     "feedback_tip": "Focus on scalability."
                 }, websocket)

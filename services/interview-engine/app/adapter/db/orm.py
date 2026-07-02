@@ -408,3 +408,42 @@ class CollaborationNoteORM(Base):
     is_private = Column(Boolean, default=True, server_default="true", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class QuestionORM(Base):
+    __tablename__ = "questions"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    category = Column(String(100), nullable=False)
+    subcategory = Column(String(100), nullable=True)
+    difficulty = Column(String(50), nullable=False)
+    problem_statement = Column(Text, nullable=False)
+    question_metadata = Column("metadata", JSONB().with_variant(JSON, "sqlite"), default={}, nullable=False)
+
+
+class QuestionRubricORM(Base):
+    __tablename__ = "question_rubrics"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    question_id = Column(UUID(as_uuid=True), ForeignKey("questions.id", ondelete="CASCADE"), nullable=False)
+    criteria = Column(String(255), nullable=False)
+    max_score = Column(Float, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class QuestionVersionORM(Base):
+    __tablename__ = "question_versions"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    question_id = Column(UUID(as_uuid=True), ForeignKey("questions.id", ondelete="CASCADE"), nullable=False)
+    version_number = Column(Integer, nullable=False)
+    statement_snapshot = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class QuestionRetrievalLogORM(Base):
+    __tablename__ = "question_retrieval_logs"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    interview_session_id = Column(UUID(as_uuid=True), ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False)
+    question_id = Column(UUID(as_uuid=True), ForeignKey("questions.id", ondelete="CASCADE"), nullable=False)
+    retrieval_strategy = Column(String(100), nullable=False)
+    latency_ms = Column(Integer, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
