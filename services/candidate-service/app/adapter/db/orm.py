@@ -959,3 +959,74 @@ class QuestionAttemptORM(Base):
     response_transcript = Column(Text, nullable=True)
     auto_score = Column(Float, nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class AnswerEvaluationORM(Base):
+    __tablename__ = "answer_evaluations"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False)
+    question_id = Column(UUID(as_uuid=True), ForeignKey("questions.id", ondelete="CASCADE"), nullable=False)
+    candidate_answer = Column(Text, nullable=False)
+    overall_score = Column(Float, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class EvaluationRubricORM(Base):
+    __tablename__ = "evaluation_rubrics"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    evaluation_id = Column(UUID(as_uuid=True), ForeignKey("answer_evaluations.id", ondelete="CASCADE"), nullable=False)
+    accuracy_score = Column(Float, nullable=True)
+    completeness_score = Column(Float, nullable=True)
+    depth_score = Column(Float, nullable=True)
+    clarity_score = Column(Float, nullable=True)
+    accuracy_feedback = Column(Text, nullable=True)
+    completeness_feedback = Column(Text, nullable=True)
+    depth_feedback = Column(Text, nullable=True)
+    clarity_feedback = Column(Text, nullable=True)
+
+
+class ConceptCoverageORM(Base):
+    __tablename__ = "concept_coverages"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    evaluation_id = Column(UUID(as_uuid=True), ForeignKey("answer_evaluations.id", ondelete="CASCADE"), nullable=False)
+    concept_name = Column(String(255), nullable=False)
+    coverage_status = Column(String(50), nullable=False)
+    relevance_score = Column(Float, nullable=True)
+
+
+class ReasoningMetricORM(Base):
+    __tablename__ = "reasoning_metrics"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    evaluation_id = Column(UUID(as_uuid=True), ForeignKey("answer_evaluations.id", ondelete="CASCADE"), nullable=False)
+    logical_flow_score = Column(Float, nullable=True)
+    decomposition_score = Column(Float, nullable=True)
+    tradeoff_discussion_score = Column(Float, nullable=True)
+    explanation = Column(Text, nullable=True)
+
+
+class SimilarityScoreORM(Base):
+    __tablename__ = "similarity_scores"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    evaluation_id = Column(UUID(as_uuid=True), ForeignKey("answer_evaluations.id", ondelete="CASCADE"), nullable=False)
+    embedding_model = Column(String(100), nullable=False)
+    cosine_similarity = Column(Float, nullable=False)
+
+
+class EvaluationFeedbackORM(Base):
+    __tablename__ = "evaluations_feedback"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    evaluation_id = Column(UUID(as_uuid=True), ForeignKey("answer_evaluations.id", ondelete="CASCADE"), nullable=False)
+    strengths = Column(Text, nullable=True)
+    weaknesses = Column(Text, nullable=True)
+    improvements = Column(Text, nullable=True)
+    learning_topics = Column(Text, nullable=True)
+
+
+class ScoreHistoryORM(Base):
+    __tablename__ = "score_histories"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    evaluation_id = Column(UUID(as_uuid=True), ForeignKey("answer_evaluations.id", ondelete="CASCADE"), nullable=False)
+    updated_score = Column(Float, nullable=False)
+    changer_role = Column(String(50), nullable=False)
+    reason = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

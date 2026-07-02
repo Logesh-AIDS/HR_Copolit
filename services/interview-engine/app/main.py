@@ -43,6 +43,9 @@ app.include_router(question_router, prefix="/api/v1")
 from app.delivery.http.coding_router import router as coding_router
 app.include_router(coding_router, prefix="/api/v1")
 
+from app.delivery.http.evaluation_router import router as evaluation_router
+app.include_router(evaluation_router, prefix="/api/v1")
+
 # Security and request logs middlewares
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(RateLimitMiddleware)
