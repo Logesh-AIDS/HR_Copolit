@@ -143,7 +143,7 @@
                             </div>
                         </aside>
 
-                        <!-- Main Grid Area: Cameras + CodingIDE/MCQ Options -->
+                        <!-- Main Grid Area: Cameras + CodingIDE/MCQ Options/Whiteboard Canvas -->
                         <main class="main-interview-area">
                             <div class="split-grid">
                                 <!-- Left side: Local and Recruiter Cameras -->
@@ -155,7 +155,7 @@
                                             <span id="proctorStatusText">Proctor Guard Active</span>
                                         </div>
                                     </div>
-                                                                    <div class="glass-panel" style="position:relative; overflow:hidden; background:#111;">
+                                    <div class="glass-panel" style="position:relative; overflow:hidden; background:#111;">
                                         <video id="remoteVideo" autoplay playsinline style="width:100%; height:100%; object-fit:cover;"></video>
                                         <div class="proctor-overlay" style="background:rgba(0,0,0,0.6); color:var(--primary);">
                                             <span class="status-dot" style="background-color: var(--primary); box-shadow: 0 0 6px var(--primary);"></span>
@@ -164,28 +164,50 @@
                                     </div>
                                 </div>
 
-                                <!-- Right side: Code Workspace IDE or MCQ Option container -->
+                                <!-- Right side: Tabs (Coding IDE / Whiteboard) -->
                                 <div class="glass-panel" style="display:flex; flex-direction:column; overflow:hidden;">
-                                    <!-- Coding Editor Pane -->
-                                    <div id="codeWorkspacePanel" style="display:flex; flex-direction:column; height:100%;">
-                                        <div class="editor-header">
-                                            <div style="display:flex; gap:12px; align-items:center;">
-                                                <span style="font-weight:bold; font-size:0.9rem;">Coding IDE</span>
-                                                <select id="languageSelect" style="background:#1F2937; color:white; border:1px solid var(--border-color); padding:4px 8px; border-radius:4px; font-size:0.8rem;">
-                                                    <option value="python">Python 3</option>
-                                                    <option value="go">Go Lang</option>
-                                                    <option value="javascript">JavaScript</option>
-                                                </select>
-                                            </div>
+                                    <div class="editor-header">
+                                        <div style="display:flex; gap:8px; align-items:center;">
+                                            <button id="tabIdeBtn" class="btn-primary" style="padding:4px 8px; font-size:0.75rem; background:var(--primary);">Coding IDE</button>
+                                            <button id="tabWbBtn" class="btn-primary" style="padding:4px 8px; font-size:0.75rem; background:transparent; border:1px solid var(--border-color); box-shadow:none;">Whiteboard</button>
+                                        </div>
+
+                                        <!-- IDE header controls -->
+                                        <div id="ideHeaderControls" style="display:flex; gap:8px; align-items:center;">
+                                            <select id="languageSelect" style="background:#1F2937; color:white; border:1px solid var(--border-color); padding:4px 8px; border-radius:4px; font-size:0.8rem;">
+                                                <option value="python">Python 3</option>
+                                                <option value="go">Go Lang</option>
+                                                <option value="javascript">JavaScript</option>
+                                            </select>
                                             <button id="runCodeBtn" class="btn-primary" style="padding:6px 14px; font-size:0.8rem; background:rgba(255,255,255,0.08); box-shadow:none; border:1px solid var(--border-color);">
                                                 Run Compilation
                                             </button>
                                         </div>
-                                        <div id="monacoEditorContainer" class="editor-container"></div>
-                                        <div class="console-panel" style="height:150px;">
+
+                                        <!-- Whiteboard header controls -->
+                                        <div id="wbHeaderControls" style="display:none; gap:8px; align-items:center;">
+                                            <select id="brushColorSelect" style="background:#1F2937; color:white; border:1px solid var(--border-color); padding:4px 8px; border-radius:4px; font-size:0.8rem;">
+                                                <option value="#3B82F6">Blue</option>
+                                                <option value="#10B981">Green</option>
+                                                <option value="#EF4444">Red</option>
+                                                <option value="#FFFFFF">White</option>
+                                            </select>
+                                            <button id="clearWbBtn" class="btn-primary" style="padding:6px 12px; font-size:0.8rem; background:var(--danger); box-shadow:none; border:none;">Clear Canvas</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Panel Contents -->
+                                    <div id="codeWorkspacePanel" style="display:flex; flex-direction:column; height:100%; flex:1;">
+                                        <div id="monacoEditorContainer" class="editor-container" style="flex:1;"></div>
+                                        <div class="console-panel" style="height:120px;">
                                             <div style="font-weight:bold; margin-bottom:6px; color:var(--text-muted);">Sandbox Console:</div>
                                             <pre id="consoleOutput">Waiting for compilation run...</pre>
                                         </div>
+                                    </div>
+
+                                    <!-- Whiteboard Drawing Canvas Panel -->
+                                    <div id="whiteboardPanelContent" style="display:none; height:100%; flex:1; background:#111; position:relative;">
+                                        <canvas id="whiteboardCanvas" style="width:100%; height:100%; cursor:crosshair;"></canvas>
                                     </div>
 
                                     <!-- MCQ options panel -->
@@ -199,26 +221,58 @@
                             </div>
                         </main>
 
-                        <!-- Right Sidebar: Question metadata, notes and telemetry warnings -->
-                        <aside class="sidebar-right">
-                            <div class="glass-panel" style="padding:16px; margin-bottom:16px; flex:1; display:flex; flex-direction:column;">
-                                <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-size:0.85rem;">
-                                    <span id="roundStageLabel" style="font-weight:bold; color:var(--primary);">ROUND: MCQ</span>
-                                    <span id="timerLabel" style="font-family:monospace; color:var(--warning); font-weight:bold; font-size:1.05rem;">45:00</span>
-                                </div>
-                                <h3 id="currentQuestionTitle" style="margin-bottom:8px; font-size:1.1rem;">Question Title</h3>
-                                <div id="currentQuestionBody" style="font-size:0.9rem; line-height:1.6; color:var(--text-muted); margin-bottom:20px; overflow-y:auto; flex:1;">
-                                    Analyzing metrics...
-                                </div>
-                                <button id="submitAnswerBtn" class="btn-primary" style="width:100%;">
-                                    Submit Current Answer
-                                </button>
+                        <!-- Right Sidebar: Unified Question Info, Notes and Chat tabs -->
+                        <aside class="sidebar-right" style="display:flex; flex-direction:column; overflow:hidden;">
+                            <!-- Tabs selection buttons row -->
+                            <div style="display:flex; gap:6px; margin-bottom:12px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
+                                <button id="rightTabInfoBtn" class="btn-primary" style="flex:1; padding:6px 0; font-size:0.75rem; background:var(--primary); box-shadow:none;">📋 Info</button>
+                                <button id="rightTabNotesBtn" class="btn-primary" style="flex:1; padding:6px 0; font-size:0.75rem; background:transparent; border:1px solid var(--border-color); box-shadow:none;">✍️ Notes</button>
+                                <button id="rightTabChatBtn" class="btn-primary" style="flex:1; padding:6px 0; font-size:0.75rem; background:transparent; border:1px solid var(--border-color); box-shadow:none;">💬 Chat</button>
                             </div>
 
-                            <!-- User Notes -->
-                            <div class="glass-panel" style="padding:16px; height:180px; display:flex; flex-direction:column; gap:8px;">
-                                <h4>Scratch Notes</h4>
-                                <textarea id="scratchNotesArea" placeholder="Type design formulas or query templates here..." style="width:100%; flex:1; background:rgba(0,0,0,0.2); border:1px solid var(--border-color); color:var(--text-main); border-radius:6px; padding:8px; font-size:0.85rem; resize:none;"></textarea>
+                            <!-- TAB 1: Question Details card -->
+                            <div id="rightTabInfoPanel" style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+                                <div class="glass-panel" style="padding:16px; flex:1; display:flex; flex-direction:column; overflow:hidden;">
+                                    <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-size:0.85rem;">
+                                        <span id="roundStageLabel" style="font-weight:bold; color:var(--primary);">ROUND: MCQ</span>
+                                        <span id="timerLabel" style="font-family:monospace; color:var(--warning); font-weight:bold; font-size:1.05rem;">45:00</span>
+                                    </div>
+                                    <h3 id="currentQuestionTitle" style="margin-bottom:8px; font-size:1.1rem;">Question Title</h3>
+                                    <div id="currentQuestionBody" style="font-size:0.9rem; line-height:1.6; color:var(--text-muted); margin-bottom:20px; overflow-y:auto; flex:1;">
+                                        Analyzing metrics...
+                                    </div>
+                                    <button id="submitAnswerBtn" class="btn-primary" style="width:100%;">
+                                        Submit Current Answer
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- TAB 2: Notes Editor panel -->
+                            <div id="rightTabNotesPanel" style="flex:1; display:none; flex-direction:column; overflow:hidden;">
+                                <div class="glass-panel" style="padding:16px; flex:1; display:flex; flex-direction:column; gap:10px;">
+                                    <h4>Interview Summary Notes</h4>
+                                    <textarea id="scratchNotesArea" placeholder="Type design formulas, constraints, or candidate score notes here..." style="width:100%; flex:1; background:rgba(0,0,0,0.2); border:1px solid var(--border-color); color:var(--text-main); border-radius:6px; padding:8px; font-size:0.85rem; resize:none;"></textarea>
+                                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                                        <label style="font-size:0.75rem; color:var(--text-muted); cursor:pointer;">
+                                            <input type="checkbox" id="notePrivateCheckbox" checked> Private (Recruiter Only)
+                                        </label>
+                                        <button id="saveNotesBtn" class="btn-primary" style="padding:4px 10px; font-size:0.75rem;">Save Notes</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- TAB 3: Collaboration Live Chat box -->
+                            <div id="rightTabChatPanel" style="flex:1; display:none; flex-direction:column; overflow:hidden;">
+                                <div class="glass-panel" style="padding:16px; flex:1; display:flex; flex-direction:column; gap:10px; overflow:hidden;">
+                                    <h4>Live Room Chat</h4>
+                                    <div id="chatMessageLog" style="flex:1; overflow-y:auto; background:rgba(0,0,0,0.2); border:1px solid var(--border-color); border-radius:6px; padding:8px; display:flex; flex-direction:column; gap:8px;">
+                                        <!-- Message logs populate here -->
+                                    </div>
+                                    <div style="display:flex; gap:6px;">
+                                        <input type="text" id="chatInputField" placeholder="Type a message..." style="flex:1; background:rgba(0,0,0,0.2); border:1px solid var(--border-color); color:var(--text-main); border-radius:6px; padding:6px; font-size:0.85rem;">
+                                        <button id="sendChatBtn" class="btn-primary" style="padding:6px 12px; font-size:0.85rem;">Send</button>
+                                    </div>
+                                </div>
                             </div>
                         </aside>
                     </div>
@@ -311,6 +365,9 @@
             </section>
         </div>
     </div>
+
+    <!-- Hidden File Input for Shared Attachments -->
+    <input type="file" id="sharedFileInput" style="display:none;" accept=".pdf,.png,.jpg,.jpeg">
 
     <!-- Toast Message Container -->
     <div id="toastContainer"></div>

@@ -25,7 +25,15 @@ const state = {
     localStream: null,
     remoteStream: null,
     peerConnection: null,
-    peerRole: "CANDIDATE"
+    peerRole: "CANDIDATE",
+    screenStream: null,
+    
+    // Collaborative drawing state
+    drawing: false,
+    brushColor: "#3B82F6",
+    brushWidth: 3,
+    lastX: 0,
+    lastY: 0
 };
 
 // Monaco Code Templates
@@ -57,6 +65,7 @@ function switchView(viewName) {
         document.getElementById("terminalScreen").classList.add("active");
         document.getElementById("viewToggleBtn").innerText = "Abort Interview";
         startInterviewTimer();
+        initWhiteboardCanvas();
     } else if (viewName === 'dashboard') {
         document.getElementById("dashboardScreen").classList.add("active");
         document.getElementById("viewToggleBtn").innerText = "Back to Apply Portal";
@@ -205,21 +214,27 @@ function initDOMEvents() {
     });
 
     document.getElementById("shareScreenBtn").addEventListener("click", (e) => {
-        state.screenSharing = !state.screenSharing;
-        e.target.classList.toggle("active");
-        showToast(state.screenSharing ? "Screen sharing initiated." : "Screen share ended.");
+        toggleScreenShare(e.target);
     });
 
     document.getElementById("chatBtn").addEventListener("click", () => {
-        showToast("Chat panel placeholder active.");
+        // Toggle Chat tab in sidebar
+        switchSidebarTab("Chat");
     });
 
     document.getElementById("uploadAttachBtn").addEventListener("click", () => {
-        showToast("Upload attachment overlay activated.");
+        document.getElementById("sharedFileInput").click();
+    });
+
+    document.getElementById("sharedFileInput").addEventListener("change", (e) => {
+        if (e.target.files.length > 0) {
+            uploadSharedFile(e.target.files[0]);
+        }
     });
 
     document.getElementById("raiseHandBtn").addEventListener("click", () => {
         showToast("Hand raised. The AI interviewer has been notified.");
+        sendWSNotification("raise_hand", "Candidate raised hand.");
     });
 
     document.getElementById("fullscreenBtn").addEventListener("click", () => {
@@ -237,6 +252,429 @@ function initDOMEvents() {
             terminateInterviewSession();
         }
     });
+
+    // Whiteboard Canvas Actions
+    document.getElementById("brushColorSelect").addEventListener("change", (e) => {
+        state.brushColor = e.target.value;
+    });
+
+    document.getElementById("clearWbBtn").addEventListener("click", () => {
+        clearLocalWhiteboard();
+        if (state.websocket && state.websocket.readyState === WebSocket.OPEN) {
+            state.websocket.send(JSON.stringify({
+                event: "collaboration_whiteboard",
+                action: "CLEAR",
+                stroke_data: {}
+            }));
+        }
+    });
+
+    // Main workspace IDE vs WB tab triggers
+    document.getElementById("tabIdeBtn").addEventListener("click", () => switchWorkspaceTab("IDE"));
+    document.getElementById("tabWbBtn").addEventListener("click", () => switchWorkspaceTab("WB"));
+
+    // Sidebar Right Tab triggers
+    document.getElementById("rightTabInfoBtn").addEventListener("click", () => switchSidebarTab("Info"));
+    document.getElementById("rightTabNotesBtn").addEventListener("click", () => switchSidebarTab("Notes"));
+    document.getElementById("rightTabChatBtn").addEventListener("click", () => switchSidebarTab("Chat"));
+
+    // Chat Message dispatcher
+    document.getElementById("sendChatBtn").addEventListener("click", () => dispatchChatMessage());
+    document.getElementById("chatInputField").addEventListener("keypress", (e) => {
+        if (e.key === "Enter") dispatchChatMessage();
+    });
+
+    // Notes saver
+    document.getElementById("saveNotesBtn").addEventListener("click", () => saveCollaborationNotes());
+}
+
+// Sidebar panel switching
+function switchSidebarTab(tabName) {
+    const infoBtn = document.getElementById("rightTabInfoBtn");
+    const notesBtn = document.getElementById("rightTabNotesBtn");
+    const chatBtn = document.getElementById("rightTabChatBtn");
+
+    const infoPanel = document.getElementById("rightTabInfoPanel");
+    const notesPanel = document.getElementById("rightTabNotesPanel");
+    const chatPanel = document.getElementById("rightTabChatPanel");
+
+    [infoBtn, notesBtn, chatBtn].forEach(b => {
+        b.style.background = "transparent";
+        b.style.border = "1px solid var(--border-color)";
+    });
+    [infoPanel, notesPanel, chatPanel].forEach(p => p.style.display = "none");
+
+    if (tabName === "Info") {
+        infoBtn.style.background = "var(--primary)";
+        infoPanel.style.display = "flex";
+    } else if (tabName === "Notes") {
+        notesBtn.style.background = "var(--primary)";
+        notesPanel.style.display = "flex";
+        loadCollaborationNotes();
+    } else if (tabName === "Chat") {
+        chatBtn.style.background = "var(--primary)";
+        chatPanel.style.display = "flex";
+        loadChatHistory();
+    }
+}
+
+// Workspace tab switching
+function switchWorkspaceTab(tabName) {
+    const ideBtn = document.getElementById("tabIdeBtn");
+    const wbBtn = document.getElementById("tabWbBtn");
+    const ideControls = document.getElementById("ideHeaderControls");
+    const wbControls = document.getElementById("wbHeaderControls");
+
+    const ideContent = document.getElementById("codeWorkspacePanel");
+    const wbContent = document.getElementById("whiteboardPanelContent");
+
+    [ideBtn, wbBtn].forEach(b => {
+        b.style.background = "transparent";
+        b.style.border = "1px solid var(--border-color)";
+    });
+    ideContent.style.display = "none";
+    wbContent.style.display = "none";
+    ideControls.style.display = "none";
+    wbControls.style.display = "none";
+
+    if (tabName === "IDE") {
+        ideBtn.style.background = "var(--primary)";
+        ideContent.style.display = "flex";
+        ideControls.style.display = "flex";
+    } else if (tabName === "WB") {
+        wbBtn.style.background = "var(--primary)";
+        wbContent.style.display = "flex";
+        wbControls.style.display = "flex";
+        
+        // Redraw/resize canvas
+        const canvas = document.getElementById("whiteboardCanvas");
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+        loadWhiteboardCanvasHistory();
+    }
+}
+
+// Collaborative HTML5 Whiteboard Canvas Setup
+function initWhiteboardCanvas() {
+    const canvas = document.getElementById("whiteboardCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const draw = (e) => {
+        if (!state.drawing) return;
+        ctx.lineWidth = state.brushWidth;
+        ctx.lineCap = "round";
+        ctx.strokeStyle = state.brushColor;
+
+        const rect = canvas.getBoundingClientRect();
+        const currX = e.clientX - rect.left;
+        const currY = e.clientY - rect.top;
+
+        ctx.beginPath();
+        ctx.moveTo(state.lastX, state.lastY);
+        ctx.lineTo(currX, currY);
+        ctx.stroke();
+
+        // Broadcast to signaling sockets
+        if (state.websocket && state.websocket.readyState === WebSocket.OPEN) {
+            state.websocket.send(JSON.stringify({
+                event: "collaboration_whiteboard",
+                action: "DRAW_PATH",
+                stroke_data: {
+                    color: state.brushColor,
+                    width: state.brushWidth,
+                    x0: state.lastX,
+                    y0: state.lastY,
+                    x1: currX,
+                    y1: currY
+                }
+            }));
+        }
+
+        state.lastX = currX;
+        state.lastY = currY;
+    };
+
+    canvas.addEventListener("mousedown", (e) => {
+        state.drawing = true;
+        const rect = canvas.getBoundingClientRect();
+        state.lastX = e.clientX - rect.left;
+        state.lastY = e.clientY - rect.top;
+    });
+
+    canvas.addEventListener("mousemove", draw);
+    canvas.addEventListener("mouseup", () => state.drawing = false);
+    canvas.addEventListener("mouseout", () => state.drawing = false);
+}
+
+function clearLocalWhiteboard() {
+    const canvas = document.getElementById("whiteboardCanvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function drawRemotePath(stroke) {
+    const canvas = document.getElementById("whiteboardCanvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+
+    ctx.lineWidth = stroke.width || 3;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = stroke.color || "#3B82F6";
+
+    ctx.beginPath();
+    ctx.moveTo(stroke.x0, stroke.y0);
+    ctx.lineTo(stroke.x1, stroke.y1);
+    ctx.stroke();
+}
+
+function loadWhiteboardCanvasHistory() {
+    if (!state.sessionId) return;
+    fetch(`http://localhost:8003/api/v1/collaboration/whiteboard/${state.sessionId}`)
+        .then(res => res.json())
+        .then(data => {
+            clearLocalWhiteboard();
+            data.data.forEach(item => {
+                if (item.event_type === "DRAW_PATH") {
+                    const stroke = JSON.parse(item.event_data);
+                    drawRemotePath(stroke);
+                } else if (item.event_type === "CLEAR") {
+                    clearLocalWhiteboard();
+                }
+            });
+        })
+        .catch(err => console.debug("Offline or failed whiteboard retrieval", err));
+}
+
+// Live Chat History & dispatching
+function loadChatHistory() {
+    if (!state.sessionId) return;
+    fetch(`http://localhost:8003/api/v1/collaboration/chat/${state.sessionId}`)
+        .then(res => res.json())
+        .then(data => {
+            const log = document.getElementById("chatMessageLog");
+            log.innerHTML = "";
+            data.data.forEach(msg => appendChatBubble(msg.sender_id, msg.message_text));
+            log.scrollTop = log.scrollHeight;
+        })
+        .catch(err => console.debug("Offline chat log history", err));
+}
+
+function dispatchChatMessage() {
+    const input = document.getElementById("chatInputField");
+    const text = input.value.trim();
+    if (!text) return;
+
+    // Send via REST API for persistence
+    if (state.sessionId) {
+        fetch(`http://localhost:8003/api/v1/collaboration/chat/${state.sessionId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                sender_id: state.peerRole,
+                recipient_id: null,
+                message_text: text
+            })
+        })
+        .then(() => {
+            // Send socket relay
+            if (state.websocket && state.websocket.readyState === WebSocket.OPEN) {
+                state.websocket.send(JSON.stringify({
+                    event: "collaboration_chat",
+                    sender_id: state.peerRole,
+                    recipient_id: null,
+                    message_text: text
+                }));
+            }
+            appendChatBubble(state.peerRole, text);
+            input.value = "";
+        });
+    } else {
+        appendChatBubble(state.peerRole, text);
+        input.value = "";
+    }
+}
+
+function appendChatBubble(sender, text) {
+    const log = document.getElementById("chatMessageLog");
+    if (!log) return;
+
+    const wrap = document.createElement("div");
+    wrap.style.display = "flex";
+    wrap.style.flexDirection = "column";
+    wrap.style.alignItems = sender === state.peerRole ? "flex-end" : "flex-start";
+    wrap.style.gap = "2px";
+
+    const bubble = document.createElement("div");
+    bubble.style.padding = "8px 12px";
+    bubble.style.borderRadius = "8px";
+    bubble.style.fontSize = "0.85rem";
+    bubble.style.maxWidth = "80%";
+    bubble.style.wordBreak = "break-word";
+
+    if (sender === state.peerRole) {
+        bubble.style.background = "var(--primary)";
+        bubble.style.color = "white";
+    } else {
+        bubble.style.background = "rgba(255,255,255,0.06)";
+        bubble.style.color = "var(--text-main)";
+        bubble.style.border = "1px solid var(--border-color)";
+    }
+
+    bubble.innerText = text;
+    wrap.appendChild(bubble);
+
+    const info = document.createElement("span");
+    info.style.fontSize = "0.7rem";
+    info.style.color = "var(--text-muted)";
+    info.innerText = sender;
+    wrap.appendChild(info);
+
+    log.appendChild(wrap);
+    log.scrollTop = log.scrollHeight;
+}
+
+// Ingest Notes Saver
+function saveCollaborationNotes() {
+    if (!state.sessionId) return;
+    const txt = document.getElementById("scratchNotesArea").value;
+    const isPrivate = document.getElementById("notePrivateCheckbox").checked;
+
+    fetch(`http://localhost:8003/api/v1/collaboration/notes/${state.sessionId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            role: state.peerRole,
+            content: txt,
+            is_private: isPrivate
+        })
+    })
+    .then(res => res.json())
+    .then(() => {
+        showToast("Collaboration notes saved.");
+    })
+    .catch(err => console.debug("Failed saving notes:", err));
+}
+
+function loadCollaborationNotes() {
+    if (!state.sessionId) return;
+    fetch(`http://localhost:8003/api/v1/collaboration/notes/${state.sessionId}?requesting_role=${state.peerRole}`)
+        .then(res => res.json())
+        .then(data => {
+            const note = data.data.find(n => n.author_role === state.peerRole);
+            if (note) {
+                document.getElementById("scratchNotesArea").value = note.notes_content;
+                document.getElementById("notePrivateCheckbox").checked = note.is_private;
+            }
+        })
+        .catch(err => console.debug("Failed loading notes:", err));
+}
+
+// Screen share triggers with WebRTC track swapping
+function toggleScreenShare(button) {
+    if (!state.screenSharing) {
+        navigator.mediaDevices.getDisplayMedia({ video: true })
+            .then(stream => {
+                state.screenStream = stream;
+                state.screenSharing = true;
+                button.classList.add("active");
+                showToast("Screen share stream captured.");
+
+                // Swaps active RTCPeerConnection video track
+                if (state.peerConnection) {
+                    const videoTrack = stream.getVideoTracks()[0];
+                    const sender = state.peerConnection.getSenders().find(s => s.track.kind === "video");
+                    if (sender) {
+                        sender.replaceTrack(videoTrack);
+                    }
+                }
+
+                // Listen for manual stream stops
+                stream.getVideoTracks()[0].onended = () => {
+                    stopLocalScreenSharing(button);
+                };
+
+                sendWSNotification("collaboration_screen_share", "STARTED");
+            })
+            .catch(err => {
+                console.warn("Screen share capturing aborted:", err);
+                state.screenSharing = false;
+                button.classList.remove("active");
+            });
+    } else {
+        stopLocalScreenSharing(button);
+    }
+}
+
+function stopLocalScreenSharing(button) {
+    if (state.screenStream) {
+        state.screenStream.getTracks().forEach(t => t.stop());
+        state.screenStream = null;
+    }
+    state.screenSharing = false;
+    button.classList.remove("active");
+    showToast("Screen share stopped.");
+
+    // Restore camera track
+    if (state.peerConnection && state.localStream) {
+        const camTrack = state.localStream.getVideoTracks()[0];
+        const sender = state.peerConnection.getSenders().find(s => s.track.kind === "video");
+        if (sender && camTrack) {
+            sender.replaceTrack(camTrack);
+        }
+    }
+    sendWSNotification("collaboration_screen_share", "STOPPED");
+}
+
+// File uploading mock registries
+function uploadSharedFile(file) {
+    showToast(`Uploading ${file.name} to secure S3 storage...`);
+    
+    // Simulating file upload latency
+    setTimeout(() => {
+        if (!state.sessionId) {
+            showToast("Attachment uploaded offline.");
+            return;
+        }
+
+        fetch(`http://localhost:8003/api/v1/collaboration/files/${state.sessionId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                uploader_id: state.peerRole,
+                file_name: file.name,
+                file_url: `s3://collaboration-attachments/${state.sessionId}/${file.name}`,
+                file_size_bytes: file.size,
+                content_type: file.type || "application/octet-stream"
+            })
+        })
+        .then(res => res.json())
+        .then(() => {
+            showToast("Document shared with interview participants.");
+            const msgText = `[File Share] Shared attachment: ${file.name}`;
+            
+            // Broadcast chat announcement
+            if (state.websocket && state.websocket.readyState === WebSocket.OPEN) {
+                state.websocket.send(JSON.stringify({
+                    event: "collaboration_chat",
+                    sender_id: state.peerRole,
+                    recipient_id: null,
+                    message_text: msgText
+                }));
+            }
+            appendChatBubble(state.peerRole, msgText);
+        });
+    }, 1200);
+}
+
+function sendWSNotification(eventSubName, value) {
+    if (state.websocket && state.websocket.readyState === WebSocket.OPEN) {
+        state.websocket.send(JSON.stringify({
+            event: `collaboration_${eventSubName}`,
+            peer_id: state.peerRole,
+            state: value
+        }));
+    }
 }
 
 // Ingest Resume PDF file and generate Plan ID
@@ -551,6 +989,24 @@ function handleWSMessage(msg) {
             state.peerConnection.addIceCandidate(new RTCIceCandidate(msg.candidate))
                 .catch(err => console.error("Error setting ICE candidate:", err));
         }
+    }
+    // Live Collaboration Handlers
+    else if (msg.event === "collaboration_chat") {
+        appendChatBubble(msg.sender_id, msg.message_text);
+        showToast(`New message from ${msg.sender_id}`);
+    }
+    else if (msg.event === "collaboration_whiteboard") {
+        if (msg.action === "DRAW_PATH") {
+            drawRemotePath(msg.stroke_data);
+        } else if (msg.action === "CLEAR") {
+            clearLocalWhiteboard();
+        }
+    }
+    else if (msg.event === "collaboration_screen_share") {
+        showToast(`Remote peer screen sharing: ${msg.state}`);
+    }
+    else if (msg.event === "collaboration_presence") {
+        showToast(`Peer connection presence: ${msg.state}`);
     }
 }
 

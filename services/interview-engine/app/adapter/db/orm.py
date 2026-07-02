@@ -366,3 +366,45 @@ class WebRTCEventORM(Base):
 
     # Relationships
     webrtc_room = relationship("WebRTCRoomORM", back_populates="events")
+
+
+class CollaborationChatORM(Base):
+    __tablename__ = "collaboration_chats"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    interview_session_id = Column(UUID(as_uuid=True), ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False)
+    sender_id = Column(String(100), nullable=False)
+    recipient_id = Column(String(100), nullable=True)
+    message_text = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CollaborationWhiteboardORM(Base):
+    __tablename__ = "collaboration_whiteboards"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    interview_session_id = Column(UUID(as_uuid=True), ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False)
+    event_type = Column(String(100), nullable=False)
+    event_data = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CollaborationFileORM(Base):
+    __tablename__ = "collaboration_files"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    interview_session_id = Column(UUID(as_uuid=True), ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False)
+    uploader_id = Column(String(100), nullable=False)
+    file_name = Column(String(255), nullable=False)
+    file_url = Column(Text, nullable=False)
+    file_size_bytes = Column(Integer, nullable=False)
+    content_type = Column(String(100), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CollaborationNoteORM(Base):
+    __tablename__ = "collaboration_notes"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    interview_session_id = Column(UUID(as_uuid=True), ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False)
+    author_role = Column(String(50), nullable=False)
+    notes_content = Column(Text, nullable=False)
+    is_private = Column(Boolean, default=True, server_default="true", nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

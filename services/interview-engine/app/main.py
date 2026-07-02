@@ -34,6 +34,9 @@ app.include_router(execution_router, prefix="/api/v1")
 from app.delivery.http.webrtc_router import router as webrtc_router
 app.include_router(webrtc_router, prefix="/api/v1")
 
+from app.delivery.http.collaboration_router import router as collaboration_router
+app.include_router(collaboration_router, prefix="/api/v1")
+
 # Security and request logs middlewares
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(RateLimitMiddleware)
@@ -66,6 +69,9 @@ webrtc_rooms_websockets = {}
 
 from app.adapter.db.webrtc_repo import WebRTCRepository
 from app.domain.services.webrtc_service import WebRTCService
+
+from app.adapter.db.collaboration_repo import CollaborationRepository
+from app.domain.services.collaboration_service import CollaborationService
 
 class ConnectionManager:
     async def connect(self, websocket: WebSocket, token: str):
@@ -165,6 +171,35 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                             await client_ws.send_json(payload)
                         except Exception as e:
                             logger.error(f"Failed to relay WebRTC packet: {e}")
+
+            elif event in {"collaboration_chat", "collaboration_whiteboard", "collaboration_screen_share", "collaboration_presence"}:
+                collab_service = CollaborationService(CollaborationRepository(db))
+                
+                if event == "collaboration_chat":
+                    sender = payload.get("sender_id", "CANDIDATE")
+                    recipient = payload.get("recipient_id")
+                    txt = payload.get("message_text", "")
+                    try:
+                        collab_service.send_chat(session_id, sender, recipient, txt)
+                    except Exception as ex:
+                        logger.error(f"Failed to record message context: {ex}")
+                        
+                elif event == "collaboration_whiteboard":
+                    act = payload.get("action", "DRAW_PATH")
+                    stroke_str = json.dumps(payload.get("stroke_data", {}))
+                    try:
+                        collab_service.save_canvas_stroke(session_id, act, stroke_str)
+                    except Exception as ex:
+                        logger.error(f"Failed to save whiteboard action: {ex}")
+                
+                # Relay to peer
+                sockets = webrtc_rooms_websockets.get(session_id, set())
+                for client_ws in sockets:
+                    if client_ws != websocket:
+                        try:
+                            await client_ws.send_json(payload)
+                        except Exception as e:
+                            logger.error(f"Failed to relay Collaboration packet: {e}")
 
             elif event == "submit_answer":
                 answer = payload.get("answer")
