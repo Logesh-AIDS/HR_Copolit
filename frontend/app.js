@@ -19,7 +19,13 @@ const state = {
     theme: 'dark', // dark, light
     micActive: true,
     camActive: true,
-    screenSharing: false
+    screenSharing: false,
+    
+    // WebRTC Core objects
+    localStream: null,
+    remoteStream: null,
+    peerConnection: null,
+    peerRole: "CANDIDATE"
 };
 
 // Monaco Code Templates
@@ -127,6 +133,7 @@ function initDOMEvents() {
             if (confirm("Are you sure you want to abort the current interview? Your state will be paused.")) {
                 stopInterviewTimer();
                 if (state.websocket) state.websocket.close();
+                if (state.peerConnection) state.peerConnection.close();
                 switchView('portal');
             }
         } else if (state.currentView === 'waitingRoom') {
@@ -182,6 +189,9 @@ function initDOMEvents() {
         state.micActive = !state.micActive;
         e.target.classList.toggle("active");
         showToast(state.micActive ? "Microphone active." : "Microphone muted.");
+        if (state.localStream) {
+            state.localStream.getAudioTracks().forEach(track => track.enabled = state.micActive);
+        }
     });
 
     document.getElementById("toggleCamBtn").addEventListener("click", (e) => {
@@ -270,6 +280,7 @@ function startWaitingRoomCheck() {
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
         .then(stream => {
             video.srcObject = stream;
+            state.localStream = stream;
             document.getElementById("camCheckItem").classList.add("passed");
             document.getElementById("camCheckText").innerText = "Webcam active and checked";
             document.getElementById("micCheckItem").classList.add("passed");
@@ -316,6 +327,7 @@ function initSecureSession() {
         const prevVideo = document.getElementById("previewVideo");
         if (prevVideo && prevVideo.srcObject) {
             video.srcObject = prevVideo.srcObject;
+            state.localStream = prevVideo.srcObject;
         }
         
         // Connect websocket
@@ -338,6 +350,9 @@ function connectExecutionWebSocket() {
     state.websocket.onopen = () => {
         document.getElementById("connectionStatusText").innerText = "System Secure";
         document.getElementById("reconnectBanner").style.display = "none";
+        
+        // Initiate WebRTC peer handshake negotiation
+        initWebRTCPeerConnection();
     };
 
     state.websocket.onmessage = (event) => {
@@ -356,6 +371,122 @@ function connectExecutionWebSocket() {
             }
         }, 5000);
     };
+}
+
+// WebRTC Peer Connection Core Logic
+function initWebRTCPeerConnection() {
+    const configuration = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+        ]
+    };
+    
+    state.peerConnection = new RTCPeerConnection(configuration);
+    
+    // Attach local stream tracks to our RTC connection
+    if (state.localStream) {
+        state.localStream.getTracks().forEach(track => {
+            state.peerConnection.addTrack(track, state.localStream);
+        });
+    }
+    
+    // Remote Peer Track added
+    state.peerConnection.ontrack = (event) => {
+        const remoteVideo = document.getElementById("remoteVideo");
+        if (remoteVideo) {
+            if (!remoteVideo.srcObject) {
+                state.remoteStream = new MediaStream();
+                remoteVideo.srcObject = state.remoteStream;
+            }
+            state.remoteStream.addTrack(event.track);
+            document.getElementById("remotePeerStatusText").innerText = "Stream Active";
+            showToast("AI Remote stream connected successfully.");
+        }
+    };
+    
+    // Handle ICE Candidates compilation
+    state.peerConnection.onicecandidate = (event) => {
+        if (event.candidate && state.websocket && state.websocket.readyState === WebSocket.OPEN) {
+            state.websocket.send(JSON.stringify({
+                event: "webrtc_ice_candidate",
+                peer_id: state.peerRole,
+                candidate: event.candidate
+            }));
+        }
+    };
+    
+    // Monitor WebRTC Connection changes
+    state.peerConnection.onconnectionstatechange = () => {
+        const connState = state.peerConnection.connectionState;
+        showToast(`RTC connection status updated: ${connState}`);
+        reportRTCStatsToAPI(connState);
+        
+        if (connState === "disconnected" || connState === "failed") {
+            // Attempt automatic restoration
+            recoverWebRTCConnection();
+        }
+    };
+    
+    // Candidate initiates SDP offer
+    state.peerConnection.createOffer()
+        .then(offer => state.peerConnection.setLocalDescription(offer))
+        .then(() => {
+            if (state.websocket && state.websocket.readyState === WebSocket.OPEN) {
+                state.websocket.send(JSON.stringify({
+                    event: "webrtc_offer",
+                    peer_id: state.peerRole,
+                    sdp: state.peerConnection.localDescription
+                }));
+            }
+        })
+        .catch(err => console.error("Failed to create offer description:", err));
+}
+
+function recoverWebRTCConnection() {
+    showToast("RTC channel interrupted. Attempting peer renegotiation...");
+    if (state.peerConnection) {
+        state.peerConnection.close();
+    }
+    setTimeout(() => {
+        if (state.currentView === 'terminal') {
+            initWebRTCPeerConnection();
+        }
+    }, 3000);
+}
+
+function reportRTCStatsToAPI(connState) {
+    if (!state.sessionId) return;
+    
+    let packetLoss = 0.0;
+    let latency = 0;
+    let jitter = 0.0;
+    
+    if (state.peerConnection) {
+        state.peerConnection.getStats().then(stats => {
+            stats.forEach(report => {
+                if (report.type === "inbound-rtp" && report.kind === "video") {
+                    packetLoss = report.packetsLost / (report.packetsReceived + report.packetsLost) || 0.0;
+                    jitter = report.jitter || 0.0;
+                } else if (report.type === "candidate-pair" && report.state === "succeeded") {
+                    latency = Math.round((report.currentRoundTripTime || 0) * 1000);
+                }
+            });
+            
+            // Post stats to API
+            fetch(`http://localhost:8003/api/v1/webrtc/stats/report/${state.sessionId}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    peer_id: state.peerRole,
+                    state: connState.toUpperCase(),
+                    packet_loss: packetLoss,
+                    latency_ms: latency,
+                    jitter_ms: jitter
+                })
+            }).catch(err => console.debug("Report statistics save failed:", err));
+        });
+    }
 }
 
 function handleWSMessage(msg) {
@@ -391,6 +522,35 @@ function handleWSMessage(msg) {
         showToast("Interview finished. Compiling evaluation dashboard.");
         stopInterviewTimer();
         switchView('dashboard');
+    }
+    // WebRTC Signaling Exchanges
+    else if (msg.event === "webrtc_offer") {
+        if (!state.peerConnection) {
+            initWebRTCPeerConnection();
+        }
+        state.peerConnection.setRemoteDescription(new RTCSessionDescription(msg.sdp))
+            .then(() => state.peerConnection.createAnswer())
+            .then(answer => state.peerConnection.setLocalDescription(answer))
+            .then(() => {
+                state.websocket.send(JSON.stringify({
+                    event: "webrtc_answer",
+                    peer_id: state.peerRole,
+                    sdp: state.peerConnection.localDescription
+                }));
+            })
+            .catch(err => console.error("Error setting remote offer SDP:", err));
+    }
+    else if (msg.event === "webrtc_answer") {
+        if (state.peerConnection) {
+            state.peerConnection.setRemoteDescription(new RTCSessionDescription(msg.sdp))
+                .catch(err => console.error("Error setting remote answer SDP:", err));
+        }
+    }
+    else if (msg.event === "webrtc_ice_candidate") {
+        if (state.peerConnection) {
+            state.peerConnection.addIceCandidate(new RTCIceCandidate(msg.candidate))
+                .catch(err => console.error("Error setting ICE candidate:", err));
+        }
     }
 }
 
@@ -568,6 +728,7 @@ function terminateInterviewSession() {
         })
         .then(() => {
             if (state.websocket) state.websocket.close();
+            if (state.peerConnection) state.peerConnection.close();
             stopInterviewTimer();
             switchView('dashboard');
         })

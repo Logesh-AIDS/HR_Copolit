@@ -31,6 +31,9 @@ app.include_router(orchestrator_router, prefix="/api/v1")
 from app.delivery.http.execution_router import router as execution_router
 app.include_router(execution_router, prefix="/api/v1")
 
+from app.delivery.http.webrtc_router import router as webrtc_router
+app.include_router(webrtc_router, prefix="/api/v1")
+
 # Security and request logs middlewares
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(RateLimitMiddleware)
@@ -56,6 +59,13 @@ from app.domain.services.orchestrator_service import OrchestratorService
 # In-memory connection tracker mapping active sessions
 # Key: session_token -> WebSocket connection
 active_connections = {}
+
+# WebRTC signaling active sockets room tracker
+# Key: session_id -> Set[WebSocket]
+webrtc_rooms_websockets = {}
+
+from app.adapter.db.webrtc_repo import WebRTCRepository
+from app.domain.services.webrtc_service import WebRTCService
 
 class ConnectionManager:
     async def connect(self, websocket: WebSocket, token: str):
@@ -100,6 +110,10 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
     # Accept connection and register session
     await manager.connect(websocket, token)
     
+    if session_id not in webrtc_rooms_websockets:
+        webrtc_rooms_websockets[session_id] = set()
+    webrtc_rooms_websockets[session_id].add(websocket)
+    
     # Handle reconnect logic if disconnected previously
     try:
         if session.status == "DISCONNECTED" or session.status == "PAUSED":
@@ -133,6 +147,25 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                     "remaining_seconds": remaining
                 }, websocket)
                 
+            elif event in {"webrtc_offer", "webrtc_answer", "webrtc_ice_candidate"}:
+                peer_id = payload.get("peer_id", "CANDIDATE")
+                webrtc_service = WebRTCService(WebRTCRepository(db))
+                webrtc_service.log_event(
+                    session_id=session_id,
+                    peer_id=peer_id,
+                    event_type=event,
+                    details=f"Forwarding SDP/ICE handshake event: {event}"
+                )
+                
+                # Relay to peer
+                sockets = webrtc_rooms_websockets.get(session_id, set())
+                for client_ws in sockets:
+                    if client_ws != websocket:
+                        try:
+                            await client_ws.send_json(payload)
+                        except Exception as e:
+                            logger.error(f"Failed to relay WebRTC packet: {e}")
+
             elif event == "submit_answer":
                 answer = payload.get("answer")
                 # Advance status and adapt question difficulty dynamically
@@ -179,6 +212,8 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                 
     except WebSocketDisconnect:
         manager.disconnect(token)
+        if session_id in webrtc_rooms_websockets:
+            webrtc_rooms_websockets[session_id].discard(websocket)
         # Pause elapsed timer dynamically on socket disconnect (grace period)
         exec_service.disconnect_session(session_id)
         logger.info(f"WebSocket connection closed for token: {token}")

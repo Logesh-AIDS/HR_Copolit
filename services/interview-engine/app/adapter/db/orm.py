@@ -326,3 +326,43 @@ class RecoveryLogORM(Base):
 
     # Relationships
     interview_session = relationship("InterviewSessionORM", back_populates="recovery_logs")
+
+
+class WebRTCRoomORM(Base):
+    __tablename__ = "webrtc_rooms"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    interview_session_id = Column(UUID(as_uuid=True), ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False)
+    status = Column(String(50), default="ACTIVE", server_default="ACTIVE", nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    connections = relationship("WebRTCConnectionORM", back_populates="webrtc_room", cascade="all, delete-orphan")
+    events = relationship("WebRTCEventORM", back_populates="webrtc_room", cascade="all, delete-orphan")
+
+
+class WebRTCConnectionORM(Base):
+    __tablename__ = "webrtc_connections"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    webrtc_room_id = Column(UUID(as_uuid=True), ForeignKey("webrtc_rooms.id", ondelete="CASCADE"), nullable=False)
+    peer_id = Column(String(100), nullable=False)
+    connection_state = Column(String(50), default="NEW", server_default="NEW", nullable=False)
+    packet_loss = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    latency_ms = Column(Integer, default=0, server_default="0", nullable=False)
+    jitter_ms = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    webrtc_room = relationship("WebRTCRoomORM", back_populates="connections")
+
+
+class WebRTCEventORM(Base):
+    __tablename__ = "webrtc_events"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    webrtc_room_id = Column(UUID(as_uuid=True), ForeignKey("webrtc_rooms.id", ondelete="CASCADE"), nullable=False)
+    peer_id = Column(String(100), nullable=True)
+    event_type = Column(String(100), nullable=False)
+    details = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    webrtc_room = relationship("WebRTCRoomORM", back_populates="events")
