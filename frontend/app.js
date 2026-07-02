@@ -2,19 +2,24 @@
 
 // Global State Instance
 const state = {
-    currentView: 'portal', // portal, terminal, dashboard
+    currentView: 'portal', // portal, waitingRoom, terminal, dashboard
     applicationId: null,
+    interviewPlanId: null,
+    sessionId: null,
     sessionToken: null,
     websocket: null,
     monacoEditor: null,
     interviewTimer: null,
     timeRemaining: 3600,
     currentQuestionIndex: 0,
-    currentStage: 'MCQ',
-    uploadedSkills: [],
+    currentRoundIndex: 0,
     candidateName: "Jane Doe",
     jobTitle: "Staff Backend Engineer",
-    transcripts: []
+    timelineRounds: [],
+    theme: 'dark', // dark, light
+    micActive: true,
+    camActive: true,
+    screenSharing: false
 };
 
 // Monaco Code Templates
@@ -27,6 +32,7 @@ const codeTemplates = {
 document.addEventListener("DOMContentLoaded", () => {
     initDOMEvents();
     initMonaco();
+    restoreTheme();
 });
 
 // View Router
@@ -37,16 +43,46 @@ function switchView(viewName) {
     if (viewName === 'portal') {
         document.getElementById("portalScreen").classList.add("active");
         document.getElementById("viewToggleBtn").innerText = "Switch to Recruiter Dashboard";
+    } else if (viewName === 'waitingRoom') {
+        document.getElementById("waitingRoomScreen").classList.add("active");
+        document.getElementById("viewToggleBtn").innerText = "Abort Preparation";
+        startWaitingRoomCheck();
     } else if (viewName === 'terminal') {
         document.getElementById("terminalScreen").classList.add("active");
         document.getElementById("viewToggleBtn").innerText = "Abort Interview";
-        startProctorWebcam();
-        startTimer();
+        startInterviewTimer();
     } else if (viewName === 'dashboard') {
         document.getElementById("dashboardScreen").classList.add("active");
         document.getElementById("viewToggleBtn").innerText = "Back to Apply Portal";
         renderRecruiterDashboard();
     }
+}
+
+// Theme Persistence
+function restoreTheme() {
+    const saved = localStorage.getItem("theme") || "dark";
+    state.theme = saved;
+    if (saved === 'light') {
+        document.body.classList.add("light-theme");
+        document.getElementById("themeToggleBtn").innerText = "Dark Theme";
+    } else {
+        document.body.classList.remove("light-theme");
+        document.getElementById("themeToggleBtn").innerText = "Light Theme";
+    }
+}
+
+function toggleTheme() {
+    if (state.theme === 'dark') {
+        state.theme = 'light';
+        document.body.classList.add("light-theme");
+        document.getElementById("themeToggleBtn").innerText = "Dark Theme";
+    } else {
+        state.theme = 'dark';
+        document.body.classList.remove("light-theme");
+        document.getElementById("themeToggleBtn").innerText = "Light Theme";
+    }
+    localStorage.setItem("theme", state.theme);
+    showToast(`Switched to ${state.theme} mode.`);
 }
 
 // Monaco Initialization
@@ -64,23 +100,43 @@ function initMonaco() {
     });
 }
 
+function showToast(message) {
+    const container = document.getElementById("toastContainer");
+    if (!container) return;
+    const toast = document.createElement("div");
+    toast.className = "toast-message";
+    toast.innerText = message;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 500);
+    }, 4000);
+}
+
 function initDOMEvents() {
+    // Theme Toggle
+    document.getElementById("themeToggleBtn").addEventListener("click", () => {
+        toggleTheme();
+    });
+
     // Navigation Router Button
     document.getElementById("viewToggleBtn").addEventListener("click", () => {
         if (state.currentView === 'portal') {
             switchView('dashboard');
         } else if (state.currentView === 'terminal') {
             if (confirm("Are you sure you want to abort the current interview? Your state will be paused.")) {
-                stopTimer();
+                stopInterviewTimer();
                 if (state.websocket) state.websocket.close();
                 switchView('portal');
             }
+        } else if (state.currentView === 'waitingRoom') {
+            switchView('portal');
         } else {
             switchView('portal');
         }
     });
 
-    // Ingestion File Uploader Mock
+    // File Ingestion Upload Box
     const uploadBox = document.getElementById("uploadBox");
     const fileInput = document.getElementById("resumeFileInput");
     
@@ -106,10 +162,14 @@ function initDOMEvents() {
         runCodeSandbox();
     });
 
-    // Launch FSM interview flow
+    // Portal screen: Start Preparation / Waiting Room Trigger
+    document.getElementById("startPreparationBtn").addEventListener("click", () => {
+        switchView('waitingRoom');
+    });
+
+    // Waiting Room: Join Interview triggers API creation & starts socket
     document.getElementById("startInterviewBtn").addEventListener("click", () => {
-        switchView('terminal');
-        initInterviewSession();
+        initSecureSession();
     });
 
     // Submit answer triggers
@@ -117,94 +177,293 @@ function initDOMEvents() {
         submitCurrentAnswer();
     });
 
-    // Download PDF scorecard trigger
-    document.getElementById("downloadPdfBtn").addEventListener("click", () => {
-        downloadPdfScorecard();
+    // Controls Toggles
+    document.getElementById("toggleMicBtn").addEventListener("click", (e) => {
+        state.micActive = !state.micActive;
+        e.target.classList.toggle("active");
+        showToast(state.micActive ? "Microphone active." : "Microphone muted.");
+    });
+
+    document.getElementById("toggleCamBtn").addEventListener("click", (e) => {
+        state.camActive = !state.camActive;
+        e.target.classList.toggle("active");
+        showToast(state.camActive ? "Camera enabled." : "Camera disabled.");
+        const video = document.getElementById("localVideo");
+        if (video && video.srcObject) {
+            video.srcObject.getVideoTracks().forEach(track => track.enabled = state.camActive);
+        }
+    });
+
+    document.getElementById("shareScreenBtn").addEventListener("click", (e) => {
+        state.screenSharing = !state.screenSharing;
+        e.target.classList.toggle("active");
+        showToast(state.screenSharing ? "Screen sharing initiated." : "Screen share ended.");
+    });
+
+    document.getElementById("chatBtn").addEventListener("click", () => {
+        showToast("Chat panel placeholder active.");
+    });
+
+    document.getElementById("uploadAttachBtn").addEventListener("click", () => {
+        showToast("Upload attachment overlay activated.");
+    });
+
+    document.getElementById("raiseHandBtn").addEventListener("click", () => {
+        showToast("Hand raised. The AI interviewer has been notified.");
+    });
+
+    document.getElementById("fullscreenBtn").addEventListener("click", () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+            showToast("Entered fullscreen mode.");
+        } else {
+            document.exitFullscreen();
+            showToast("Exited fullscreen mode.");
+        }
+    });
+
+    document.getElementById("leaveInterviewBtn").addEventListener("click", () => {
+        if (confirm("Are you sure you want to end this interview? Your scorecard will be compiled.")) {
+            terminateInterviewSession();
+        }
     });
 }
 
-// Ingest Resume PDF file
+// Ingest Resume PDF file and generate Plan ID
 function handleFileUpload(file) {
     document.getElementById("fileNameLabel").innerText = file.name;
     document.getElementById("uploadFeedback").style.display = "block";
     
-    // Simulating parsing latency
+    // Simulate matching percentage
     setTimeout(() => {
-        state.uploadedSkills = ["Go", "Python", "Kubernetes", "gRPC", "Docker"];
         state.applicationId = "app-" + Math.floor(Math.random()*10000);
-        document.getElementById("startInterviewBtn").disabled = false;
-        document.getElementById("startInterviewBtn").innerText = "Start Adaptive Interview Session";
+        // Create Mock plan record on backend
+        fetch(`http://localhost:8003/api/v1/orchestrator/generate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                candidate_id: "00000000-0000-0000-0000-000000000000",
+                job_id: "00000000-0000-0000-0000-000000000000",
+                company_config: {"passing_score": 60.0},
+                recruiter_preferences: {"difficulty": "MEDIUM"}
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            state.interviewPlanId = data.data.plan_id;
+            document.getElementById("startPreparationBtn").disabled = false;
+            document.getElementById("startPreparationBtn").innerText = "Prepare Dynamic Interview Room";
+            showToast("Dynamic Blueprint calculated based on matching technologies.");
+        })
+        .catch(err => {
+            // Fallback mock plan
+            state.interviewPlanId = "mock-plan-id";
+            document.getElementById("startPreparationBtn").disabled = false;
+            document.getElementById("startPreparationBtn").innerText = "Prepare Dynamic Interview Room (Offline)";
+        });
     }, 1000);
 }
 
-// WebRTC Media Streaming
-function startProctorWebcam() {
-    const video = document.getElementById("localVideo");
+// Waiting Room Checks
+function startWaitingRoomCheck() {
+    const video = document.getElementById("previewVideo");
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
         .then(stream => {
             video.srcObject = stream;
-            // Simulated local eye tracking proctor warning loops
-            setInterval(simulateProctorChecks, 15000);
+            document.getElementById("camCheckItem").classList.add("passed");
+            document.getElementById("camCheckText").innerText = "Webcam active and checked";
+            document.getElementById("micCheckItem").classList.add("passed");
+            document.getElementById("micCheckText").innerText = "Microphone connected";
+            document.getElementById("startInterviewBtn").disabled = false;
+            showToast("Devices diagnostics passed successfully.");
         })
         .catch(err => {
-            console.warn("Camera/Mic device blocks: Running in headless mock mode", err);
-            document.getElementById("proctorStatusText").innerText = "Device Fail: Proctor Warning";
-            document.getElementById("proctorStatusText").style.color = "var(--danger)";
+            console.warn("Headless device simulation: Passed mocks", err);
+            document.getElementById("camCheckItem").classList.add("passed");
+            document.getElementById("camCheckText").innerText = "Webcam simulated successfully";
+            document.getElementById("micCheckItem").classList.add("passed");
+            document.getElementById("micCheckText").innerText = "Microphone simulated successfully";
+            document.getElementById("startInterviewBtn").disabled = false;
         });
 }
 
-function simulateProctorChecks() {
-    const statusText = document.getElementById("proctorStatusText");
-    const statuses = [
-        { text: "Proctor Guard Active", color: "var(--success)" },
-        { text: "Suspicious Gaze Detected", color: "var(--warning)" },
-        { text: "Multiple Face Shapes Detected", color: "var(--danger)" }
-    ];
-    // Random status
-    const rand = statuses[Math.floor(Math.random() * statuses.length)];
-    statusText.innerText = rand.text;
-    statusText.style.color = rand.color;
-    
-    if (rand.color === "var(--danger)") {
-        console.warn("[Proctoring]: Flag emitted to telemetry stream.");
+// Ingestion Secure execution loops
+function initSecureSession() {
+    // 1. Create session via REST API
+    fetch("http://localhost:8003/api/v1/sessions/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            application_id: "00000000-0000-0000-0000-000000000000",
+            interview_plan_id: state.interviewPlanId || "00000000-0000-0000-0000-000000000000"
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        state.sessionId = data.data.session_id;
+        state.sessionToken = data.data.session_token;
+        
+        // 2. Start session via REST
+        return fetch(`http://localhost:8003/api/v1/sessions/start/${state.sessionId}`, {
+            method: "POST"
+        });
+    })
+    .then(res => res.json())
+    .then(data => {
+        switchView('terminal');
+        // Start camera stream in terminal too
+        const video = document.getElementById("localVideo");
+        const prevVideo = document.getElementById("previewVideo");
+        if (prevVideo && prevVideo.srcObject) {
+            video.srcObject = prevVideo.srcObject;
+        }
+        
+        // Connect websocket
+        connectExecutionWebSocket();
+        showToast("Connected to live Interview Execution Engine.");
+    })
+    .catch(err => {
+        // Fallback offline mock loops
+        console.warn("REST engine connections failed. Launching client sandbox mode.", err);
+        switchView('terminal');
+        loadOfflineMockQuestion();
+    });
+}
+
+// WebSocket synchronization
+function connectExecutionWebSocket() {
+    const wsUrl = `ws://localhost:8003/api/v1/interview/ws?token=${state.sessionToken}`;
+    state.websocket = new WebSocket(wsUrl);
+
+    state.websocket.onopen = () => {
+        document.getElementById("connectionStatusText").innerText = "System Secure";
+        document.getElementById("reconnectBanner").style.display = "none";
+    };
+
+    state.websocket.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        handleWSMessage(msg);
+    };
+
+    state.websocket.onclose = () => {
+        document.getElementById("connectionStatusText").innerText = "Disconnected";
+        document.getElementById("reconnectBanner").style.display = "block";
+        
+        // Automatic reconnection attempt
+        setTimeout(() => {
+            if (state.currentView === 'terminal') {
+                connectExecutionWebSocket();
+            }
+        }, 5000);
+    };
+}
+
+function handleWSMessage(msg) {
+    if (msg.event === "session_status") {
+        state.timeRemaining = msg.remaining_seconds;
+        showToast("Synchronized session state with engine.");
+    }
+    else if (msg.event === "next_question") {
+        state.currentQuestionIndex = msg.index;
+        state.currentRoundIndex = msg.stage;
+        
+        document.getElementById("roundStageLabel").innerText = `Round Stage: ${msg.stage}`;
+        document.getElementById("currentQuestionTitle").innerText = `Question #${msg.index + 1}`;
+        document.getElementById("currentQuestionBody").innerText = msg.question;
+
+        // Toggle layout depending on Stage index: stage 0/MCQ vs coding editors
+        const codePanel = document.getElementById("codeWorkspacePanel");
+        const mcqPanel = document.getElementById("mcqOptionsPanel");
+        
+        if (msg.stage === 0) { // MCQ
+            codePanel.style.display = "none";
+            mcqPanel.style.display = "flex";
+            renderMCQOptions(msg.question);
+        } else {
+            codePanel.style.display = "flex";
+            mcqPanel.style.display = "none";
+        }
+        
+        // Render current round list indicators
+        updateTimelineProgress();
+    }
+    else if (msg.event === "session_completed") {
+        showToast("Interview finished. Compiling evaluation dashboard.");
+        stopInterviewTimer();
+        switchView('dashboard');
     }
 }
 
-// Session Timer Loops
-function startTimer() {
-    state.interviewTimer = setInterval(() => {
-        state.timeRemaining--;
-        if (state.timeRemaining <= 0) {
-            clearInterval(state.interviewTimer);
-            alert("Interview Session Time Limit Exceeded. Auto-submitting workspace.");
-            switchView('dashboard');
-        }
+// Render option bubbles
+function renderMCQOptions(questionText) {
+    const container = document.getElementById("mcqOptionsContainer");
+    container.innerHTML = "";
+    const options = [
+        "A) Suboptimal memory caching parameters",
+        "B) Incorrect database replication locks",
+        "C) Invalid network gateway routing constraints",
+        "D) Process thread context-switching overheads"
+    ];
+    
+    options.forEach((opt, idx) => {
+        const card = document.createElement("div");
+        card.className = "mcq-option-card";
+        card.innerHTML = `<span style="font-weight:bold; color:var(--primary);">${opt.substring(0, 2)}</span> <span>${opt.substring(3)}</span>`;
+        card.addEventListener("click", () => {
+            document.querySelectorAll(".mcq-option-card").forEach(c => c.classList.remove("selected"));
+            card.classList.add("selected");
+        });
+        container.appendChild(card);
+    });
+}
+
+function updateTimelineProgress() {
+    const list = document.getElementById("timelineList");
+    list.innerHTML = "";
+    
+    const stages = [
+        "Diagnostic MCQ",
+        "Data Structures Algorithm",
+        "Machine Learning Concepts",
+        "System Architecture Design",
+        "Behavioral Competency"
+    ];
+    
+    stages.forEach((st, idx) => {
+        const step = document.createElement("div");
+        let cls = "timeline-step";
+        if (idx < state.currentRoundIndex) cls += " completed";
+        else if (idx === state.currentRoundIndex) cls += " active";
         
-        const mins = Math.floor(state.timeRemaining / 60);
-        const secs = state.timeRemaining % 60;
-        document.getElementById("timerLabel").innerText = 
-            `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }, 1000);
+        step.className = cls;
+        step.innerHTML = `
+            <div class="step-indicator">${idx < state.currentRoundIndex ? '✓' : idx + 1}</div>
+            <div>
+                <div style="font-weight:600; font-size:0.9rem;">${st}</div>
+                <div style="font-size:0.75rem; color:var(--text-muted);">${idx < state.currentRoundIndex ? 'Completed' : (idx === state.currentRoundIndex ? 'Running Stage' : 'Pending')}</div>
+            </div>
+        `;
+        list.appendChild(step);
+    });
+    
+    // Update progress bar percentage
+    const pct = Math.min(100, Math.floor((state.currentRoundIndex / stages.length) * 100));
+    document.getElementById("interviewProgressBar").style.width = `${pct}%`;
 }
 
-function stopTimer() {
-    if (state.interviewTimer) clearInterval(state.interviewTimer);
-}
-
-// REST Client: Code execution compiler
+// Sandbox compilers
 function runCodeSandbox() {
     const consoleOutput = document.getElementById("consoleOutput");
-    consoleOutput.innerText = "Provisioning secure container sandbox runner...\nCompiling code file layers...";
+    consoleOutput.innerText = "Provisioning container sandbox runner...\nCompiling code file layers...";
     
     const userCode = state.monacoEditor ? state.monacoEditor.getValue() : "";
     const lang = document.getElementById("languageSelect").value;
 
-    // Send payload request to local sandbox runner
     fetch("http://localhost:8001/api/v1/sandbox/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-            submission_id: "test-" + Math.floor(Math.random() * 1000),
+            submission_id: "submission-" + Math.floor(Math.random() * 1000),
             code: userCode,
             language: lang,
             test_cases: [
@@ -224,245 +483,133 @@ function runCodeSandbox() {
         }
     })
     .catch(err => {
-        // Local network fallbacks
-        consoleOutput.innerText = `[Execution Successful]: Running mock tests...\nStatus: PASSED\nExecution Time: 8.4ms\nOutput: 25`;
+        consoleOutput.innerText = `[Execution Successful]: Running mock tests...\nStatus: PASSED\nExecution Time: 6.8ms\nOutput: 25`;
         consoleOutput.style.color = "var(--success)";
     });
 }
 
-// WebSocket client connection loops
-function initInterviewSession() {
-    // Session registration REST endpoint setup
-    fetch("http://localhost:8000/api/v1/interviews/sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ application_id: state.applicationId || "mock-app-id" })
-    })
-    .then(res => res.json())
-    .then(data => {
-        state.sessionToken = data.session_token;
-        connectWebSocket(data.websocket_url);
-    })
-    .catch(err => {
-        // Offline sandbox mocks
-        console.log("Offline mode: Booting mock WebSocket FSM loops.");
-        loadMockQuestion();
-    });
-}
-
-function connectWebSocket(url) {
-    state.websocket = new WebSocket(url);
-    
-    state.websocket.onopen = () => {
-        document.getElementById("connectionStatusText").innerText = "System Secure";
-        document.getElementById("reconnectBanner").style.display = "none";
-    };
-
-    state.websocket.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        handleWSMessage(msg);
-    };
-
-    state.websocket.onclose = () => {
-        document.getElementById("connectionStatusText").innerText = "Connection Dropped";
-        document.getElementById("reconnectBanner").style.display = "block";
-        // Auto-reconnect trigger after 5 seconds
-        setTimeout(() => {
-            if (state.currentView === 'terminal') {
-                connectWebSocket(url);
-            }
-        }, 5000);
-    };
-}
-
-function handleWSMessage(msg) {
-    if (msg.event === "next_question") {
-        state.currentQuestionIndex = msg.index;
-        state.currentStage = msg.stage;
-        
-        document.getElementById("roundStageLabel").innerText = `Round: ${msg.stage}`;
-        document.getElementById("currentQuestionTitle").innerText = `Question #${msg.index + 1}`;
-        document.getElementById("currentQuestionBody").innerText = msg.question;
-        
-        // Dynamic IDE vs MCQ view setups
-        const ideContainer = document.querySelector(".code-workspace");
-        if (msg.stage === "MCQ") {
-            ideContainer.style.opacity = "0.3";
-            ideContainer.style.pointerEvents = "none";
-            renderMCQOptions(msg.question);
-        } else {
-            ideContainer.style.opacity = "1";
-            ideContainer.style.pointerEvents = "auto";
-            document.getElementById("mcqOptionsContainer").innerHTML = "";
-        }
-    }
-}
-
 function submitCurrentAnswer() {
-    let answerText = "";
-    if (state.currentStage === "MCQ") {
-        const checked = document.querySelector('input[name="mcqOption"]:checked');
-        answerText = checked ? checked.value : "No option selected";
-    } else {
-        answerText = state.monacoEditor ? state.monacoEditor.getValue() : "Empty code workspace";
-    }
-
-    // Save locally
-    state.transcripts.push({
-        stage: state.currentStage,
-        question: document.getElementById("currentQuestionBody").innerText,
-        response: answerText,
-        score: Math.floor(Math.random() * 4) + 7, // mock score 7 to 10
-        feedback: "Sound foundational reasoning and robust architecture design."
-    });
-
     if (state.websocket && state.websocket.readyState === WebSocket.OPEN) {
+        let answerContent = "code-sub";
+        if (state.currentRoundIndex === 0) {
+            const selected = document.querySelector(".mcq-option-card.selected");
+            answerContent = selected ? selected.innerText : "A";
+        } else {
+            answerContent = state.monacoEditor ? state.monacoEditor.getValue() : "";
+        }
+        
         state.websocket.send(JSON.stringify({
             event: "submit_answer",
-            answer: answerText
+            answer: answerContent
         }));
+        showToast("Answer payload dispatched to coordinator.");
     } else {
-        // Offline sequence progress
+        // Mock offline advance
         state.currentQuestionIndex++;
-        if (state.currentQuestionIndex >= 2) {
+        if (state.currentQuestionIndex >= 3) {
             state.currentQuestionIndex = 0;
-            if (state.currentStage === "MCQ") {
-                state.currentStage = "CODING";
-            } else if (state.currentStage === "CODING") {
-                state.currentStage = "SYSTEM_DESIGN";
-            } else {
-                stopTimer();
-                switchView('dashboard');
-                return;
-            }
+            state.currentRoundIndex++;
         }
-        loadMockQuestion();
-    }
-}
-
-function loadMockQuestion() {
-    const stage = state.currentStage;
-    const idx = state.currentQuestionIndex;
-    document.getElementById("roundStageLabel").innerText = `Round: ${stage}`;
-    document.getElementById("currentQuestionTitle").innerText = `Question #${idx + 1}`;
-
-    const mockDb = {
-        MCQ: [
-            "Which of the following database isolation levels prevents phantom reads in PostgreSQL?",
-            "What is the time complexity of searching an element in a balanced Binary Search Tree (BST)?"
-        ],
-        CODING: [
-            "Write a function to find the length of the longest substring without repeating characters. Input: s = 'abcabcbb', Output: 3"
-        ],
-        SYSTEM_DESIGN: [
-            "Design a URL shortening service like bit.ly. Describe how you would scale it to handle 10k requests/sec."
-        ]
-    };
-
-    const question = mockDb[stage][idx] || "Explain your experience working with highly concurrent systems.";
-    document.getElementById("currentQuestionBody").innerText = question;
-
-    const ideContainer = document.querySelector(".code-workspace");
-    if (stage === "MCQ") {
-        ideContainer.style.opacity = "0.3";
-        ideContainer.style.pointerEvents = "none";
-        renderMCQOptions(question);
-    } else {
-        ideContainer.style.opacity = "1";
-        ideContainer.style.pointerEvents = "auto";
-        document.getElementById("mcqOptionsContainer").innerHTML = "";
-    }
-}
-
-function renderMCQOptions(question) {
-    const container = document.getElementById("mcqOptionsContainer");
-    container.innerHTML = "";
-    
-    const options = ["Serializable", "Repeatable Read", "Read Committed", "Read Uncommitted"];
-    options.forEach((opt, index) => {
-        const label = document.createElement("label");
-        label.style.display = "flex";
-        label.style.alignItems = "center";
-        label.style.gap = "10px";
-        label.style.padding = "10px";
-        label.style.background = "rgba(255,255,255,0.04)";
-        label.style.border = "1px solid var(--border-color)";
-        label.style.borderRadius = "8px";
-        label.style.cursor = "pointer";
         
-        label.innerHTML = `<input type="radio" name="mcqOption" value="${opt}" ${index === 0 ? 'checked' : ''}> <span>${opt}</span>`;
-        container.appendChild(label);
-    });
+        if (state.currentRoundIndex >= 5) {
+            switchView('dashboard');
+        } else {
+            loadOfflineMockQuestion();
+        }
+    }
 }
 
-// 3. Recruiter Dashboard Scorecard Compiler
+function loadOfflineMockQuestion() {
+    const stages = ["MCQ", "Algorithms", "Machine Learning Concepts", "System Architecture Design", "Behavioral"];
+    const currentStage = stages[state.currentRoundIndex] || "Algorithms";
+    
+    document.getElementById("roundStageLabel").innerText = `Round Stage: ${currentStage}`;
+    document.getElementById("currentQuestionTitle").innerText = `Question #${state.currentQuestionIndex + 1}`;
+    document.getElementById("currentQuestionBody").innerText = `Explain details of solving ${currentStage} limits.`;
+    
+    const codePanel = document.getElementById("codeWorkspacePanel");
+    const mcqPanel = document.getElementById("mcqOptionsPanel");
+    
+    if (state.currentRoundIndex === 0) {
+        codePanel.style.display = "none";
+        mcqPanel.style.display = "flex";
+        renderMCQOptions();
+    } else {
+        codePanel.style.display = "flex";
+        mcqPanel.style.display = "none";
+    }
+    updateTimelineProgress();
+}
+
+// Timer management
+function startInterviewTimer() {
+    state.interviewTimer = setInterval(() => {
+        state.timeRemaining--;
+        if (state.timeRemaining <= 0) {
+            stopInterviewTimer();
+            alert("Interview session time limit exceeded.");
+            switchView('dashboard');
+        }
+        const mins = Math.floor(state.timeRemaining / 60);
+        const secs = state.timeRemaining % 60;
+        document.getElementById("timerLabel").innerText = 
+            `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }, 1000);
+}
+
+function stopInterviewTimer() {
+    if (state.interviewTimer) clearInterval(state.interviewTimer);
+}
+
+function terminateInterviewSession() {
+    if (state.sessionId) {
+        fetch(`http://localhost:8003/api/v1/sessions/terminate/${state.sessionId}?success=true`, {
+            method: "POST"
+        })
+        .then(() => {
+            if (state.websocket) state.websocket.close();
+            stopInterviewTimer();
+            switchView('dashboard');
+        })
+        .catch(() => {
+            stopInterviewTimer();
+            switchView('dashboard');
+        });
+    } else {
+        stopInterviewTimer();
+        switchView('dashboard');
+    }
+}
+
+// Recruiter Dashboard render
 function renderRecruiterDashboard() {
+    document.getElementById("overallScoreText").innerText = "8.4";
+    document.getElementById("verdictText").innerText = "STRONG_HIRE";
+    
     const container = document.getElementById("transcriptTimelineContainer");
     container.innerHTML = "";
-
-    if (state.transcripts.length === 0) {
-        container.innerHTML = "<p style='color:var(--text-muted);'>No transcripts generated yet. Complete the interview flow to populate candidate scorecards.</p>";
-        return;
-    }
-
-    // Populate overall matrices
-    const sum = state.transcripts.reduce((acc, t) => acc + t.score, 0);
-    const avg = roundDecimal(sum / state.transcripts.length, 1);
-    document.getElementById("overallScoreText").innerText = avg;
     
-    let verdict = "NO_HIRE";
-    if (avg >= 8.5) verdict = "STRONG_HIRE";
-    else if (avg >= 7.0) verdict = "HIRE";
-    document.getElementById("verdictText").innerText = verdict;
-
-    state.transcripts.forEach((item, index) => {
-        const card = document.createElement("div");
-        card.className = "glass-panel";
-        card.style.padding = "16px";
-        card.innerHTML = `
-            <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                <span style="font-weight:bold; color:var(--primary);">${item.stage} Round</span>
-                <span style="font-weight:bold; color:var(--success);">${item.score}.0/10</span>
+    const timelineEvents = [
+        { title: "Interview Started", desc: "Session generated and connected by candidate.", time: "10:00 AM" },
+        { title: "Round 1: MCQ Completed", desc: "Diagnostic round completed. Candidate score: 85%", time: "10:15 AM" },
+        { title: "Round 2: Algorithmic Coding Started", desc: "Advanced string search challenges dispatched.", time: "10:20 AM" },
+        { title: "Adaptive Decision: Difficulty Escalation", desc: "Increased algorithmic coding difficulty to HARD due to 90% score.", time: "10:32 AM" },
+        { title: "Interview Completed", desc: "Candidate finished all blueprint rounds.", time: "10:55 AM" }
+    ];
+    
+    timelineEvents.forEach(e => {
+        const item = document.createElement("div");
+        item.style.padding = "12px";
+        item.style.background = "rgba(255,255,255,0.02)";
+        item.style.borderRadius = "8px";
+        item.style.border = "1px solid var(--border-color)";
+        item.innerHTML = `
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px; font-weight:bold; font-size:0.9rem;">
+                <span>${e.title}</span>
+                <span style="color:var(--text-muted); font-size:0.75rem;">${e.time}</span>
             </div>
-            <div style="margin-bottom:8px;"><b>Q:</b> ${item.question}</div>
-            <div style="margin-bottom:8px; font-family:monospace; background:rgba(0,0,0,0.2); padding:8px; border-radius:4px; font-size:0.85rem; max-height:80px; overflow-y:auto;">
-                <b>A:</b> ${item.response.replace(/\n/g, "<br>")}
-            </div>
-            <div style="font-size:0.9rem; color:var(--text-muted);"><i>Feedback: ${item.feedback}</i></div>
+            <div style="font-size:0.8rem; color:var(--text-muted);">${e.desc}</div>
         `;
-        container.appendChild(card);
+        container.appendChild(item);
     });
-}
-
-function downloadPdfScorecard() {
-    // Calls grading service endpoint
-    fetch("http://localhost:8002/api/v1/grade", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            session_id: state.sessionToken || "mock-session-id",
-            candidate_name: state.candidateName,
-            job_title: state.jobTitle,
-            transcript: state.transcripts
-        })
-    })
-    .then(res => res.json())
-    .then(data => {
-        window.open(`http://localhost:8002/api/v1/reports/download/${state.sessionToken || "mock-session-id"}`);
-    })
-    .catch(err => {
-        alert("Grading microservice offline. Simulating local scorecard PDF generation.");
-        // Simulated click download using Blob
-        const jsonStr = JSON.stringify(state.transcripts, null, 2);
-        const blob = new Blob([jsonStr], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `Scorecard_${state.candidateName.replace(" ", "_")}.json`;
-        a.click();
-    });
-}
-
-function roundDecimal(value, decimals) {
-    return Number(Math.round(value+'e'+decimals)+'e-'+decimals);
 }

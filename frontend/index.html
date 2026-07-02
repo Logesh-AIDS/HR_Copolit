@@ -24,7 +24,10 @@
             </div>
             
             <div style="display: flex; gap: 15px; align-items: center;">
-                <button id="viewToggleBtn" class="btn-primary" style="background: transparent; border: 1px solid var(--border-color); box-shadow: none;">
+                <button id="themeToggleBtn" class="btn-primary" style="background: transparent; border: 1px solid var(--border-color); box-shadow: none; padding: 6px 12px;">
+                    Light Theme
+                </button>
+                <button id="viewToggleBtn" class="btn-primary" style="background: transparent; border: 1px solid var(--border-color); box-shadow: none; padding: 6px 12px;">
                     Switch to Recruiter Dashboard
                 </button>
                 <div class="system-status">
@@ -73,78 +76,179 @@
                             </div>
                         </div>
 
-                        <button id="startInterviewBtn" class="btn-primary" style="width: 100%; margin-top: 24px;" disabled>
+                        <button id="startPreparationBtn" class="btn-primary" style="width: 100%; margin-top: 24px;" disabled>
                             Generate Dynamic Interview Plan
                         </button>
                     </div>
                 </div>
             </section>
 
-            <!-- VIEW 2: Interview Workspace Terminal -->
-            <section id="terminalScreen" class="screen">
-                <div class="workspace-layout">
+            <!-- VIEW 2: Waiting Room Screen -->
+            <section id="waitingRoomScreen" class="screen">
+                <div class="glass-panel waiting-room-card">
+                    <h2 style="border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 20px;">Prepare for the Interview</h2>
+                    <p style="color: var(--text-muted); margin-bottom: 24px;">Please review your browser permissions and ensure your camera and microphone are configured correctly before joining the secure session.</p>
                     
-                    <!-- Left Sidebar (Live Stream and conversation stats) -->
-                    <div class="sidebar-panel">
-                        <div class="video-container">
-                            <video id="localVideo" class="local-video" autoplay playsinline muted></video>
-                            <div class="proctor-overlay">
-                                <span class="status-dot" style="background-color: var(--success); box-shadow: 0 0 6px var(--success);"></span>
-                                <span id="proctorStatusText">Proctor Guard Active</span>
+                    <div class="waiting-grid">
+                        <!-- Camera Preview Box -->
+                        <div class="camera-preview-box">
+                            <video id="previewVideo" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover; transform:scaleX(-1);"></video>
+                            <div class="device-indicator">
+                                <span class="status-dot"></span>
+                                <span>Webcam Check Active</span>
                             </div>
                         </div>
 
-                        <div class="glass-panel question-panel">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-                                <span id="roundStageLabel" style="color:var(--primary); font-weight:bold; font-size:0.9rem; text-transform:uppercase;">Round 1: MCQ</span>
-                                <span id="timerLabel" style="font-family:monospace; font-size:1.1rem; color:var(--warning);">45:00</span>
+                        <!-- Checklists and permissions -->
+                        <div class="checklist-wrapper">
+                            <h3>Pre-Interview Checklist</h3>
+                            <div class="checklist-item passed">
+                                <div class="checklist-check">✓</div>
+                                <span>Resume matching parsed successfully</span>
                             </div>
-                            
-                            <h3 id="currentQuestionTitle" style="margin-bottom: 12px; font-size: 1.15rem;">Question Ingesting...</h3>
-                            <div id="currentQuestionBody" class="question-text">
-                                Analyzing your skill matrix coordinates. Preparing initial diagnostic question...
+                            <div id="camCheckItem" class="checklist-item">
+                                <div class="checklist-check">✓</div>
+                                <span id="camCheckText">Checking Webcam Permissions...</span>
                             </div>
-                            
-                            <div id="mcqOptionsContainer" style="display:flex; flex-direction:column; gap:10px; margin-top: 15px;">
-                                <!-- MCQ options rendered via JS -->
+                            <div id="micCheckItem" class="checklist-item">
+                                <div class="checklist-check">✓</div>
+                                <span id="micCheckText">Checking Microphone Access...</span>
                             </div>
-                            
-                            <div style="margin-top:auto; padding-top:20px;">
-                                <button id="submitAnswerBtn" class="btn-primary" style="width:100%;">
-                                    Submit Answer
-                                </button>
+                            <div class="checklist-item passed">
+                                <div class="checklist-check">✓</div>
+                                <span>Connection to backend established</span>
                             </div>
-                        </div>
-                    </div>
 
-                    <!-- Right IDE Workspace -->
-                    <div class="glass-panel code-workspace">
-                        <div class="editor-header">
-                            <div style="display:flex; gap:12px; align-items:center;">
-                                <span style="font-weight:bold; font-size:0.95rem;">Coding IDE</span>
-                                <select id="languageSelect" style="background:#1F2937; color:white; border:1px solid var(--border-color); padding:4px 8px; border-radius:4px;">
-                                    <option value="python">Python 3</option>
-                                    <option value="go">Go Lang</option>
-                                    <option value="javascript">JavaScript</option>
-                                </select>
-                            </div>
-                            <button id="runCodeBtn" class="btn-primary" style="padding:6px 14px; font-size:0.85rem; background:rgba(255,255,255,0.08); box-shadow:none; border:1px solid var(--border-color);">
-                                Run Sandbox Compilation
+                            <button id="startInterviewBtn" class="btn-primary" style="margin-top: 20px; width: 100%;" disabled>
+                                Join Secure Interview Room
                             </button>
-                        </div>
-                        
-                        <!-- Monaco container -->
-                        <div id="monacoEditorContainer" class="editor-container"></div>
-                        
-                        <div class="console-panel">
-                            <div style="font-weight:bold; margin-bottom:6px; color:var(--text-muted);">Execution Output Console:</div>
-                            <pre id="consoleOutput">Waiting for sandbox execution run...</pre>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- VIEW 3: Recruiter Evaluation Dashboard -->
+            <!-- VIEW 3: Interview Workspace Terminal -->
+            <section id="terminalScreen" class="screen">
+                <div class="workspace-container">
+                    <div class="dashboard-layout">
+                        
+                        <!-- Left Sidebar: Interview Progress and Timeline -->
+                        <aside class="sidebar-left">
+                            <h3 style="margin-bottom: 8px;">Rounds Timeline</h3>
+                            <div class="skill-bar-track" style="margin-bottom: 20px; height: 6px;">
+                                <div id="interviewProgressBar" class="skill-bar-fill" style="width: 0%;"></div>
+                            </div>
+                            <div id="timelineList" class="timeline-list">
+                                <!-- Populated dynamically by app.js -->
+                            </div>
+                        </aside>
+
+                        <!-- Main Grid Area: Cameras + CodingIDE/MCQ Options -->
+                        <main class="main-interview-area">
+                            <div class="split-grid">
+                                <!-- Left side: Local and Recruiter Cameras -->
+                                <div class="video-grid-panel">
+                                    <div class="glass-panel" style="position:relative; overflow:hidden; background:#111;">
+                                        <video id="localVideo" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover; transform:scaleX(-1);"></video>
+                                        <div class="proctor-overlay">
+                                            <span class="status-dot"></span>
+                                            <span id="proctorStatusText">Proctor Guard Active</span>
+                                        </div>
+                                    </div>
+                                    <div class="glass-panel" style="position:relative; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#181E2E;">
+                                        <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--text-muted); margin-bottom:8px;">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                        </svg>
+                                        <span style="font-size:0.9rem; color:var(--text-muted);">AI Interviewer Connected</span>
+                                    </div>
+                                </div>
+
+                                <!-- Right side: Code Workspace IDE or MCQ Option container -->
+                                <div class="glass-panel" style="display:flex; flex-direction:column; overflow:hidden;">
+                                    <!-- Coding Editor Pane -->
+                                    <div id="codeWorkspacePanel" style="display:flex; flex-direction:column; height:100%;">
+                                        <div class="editor-header">
+                                            <div style="display:flex; gap:12px; align-items:center;">
+                                                <span style="font-weight:bold; font-size:0.9rem;">Coding IDE</span>
+                                                <select id="languageSelect" style="background:#1F2937; color:white; border:1px solid var(--border-color); padding:4px 8px; border-radius:4px; font-size:0.8rem;">
+                                                    <option value="python">Python 3</option>
+                                                    <option value="go">Go Lang</option>
+                                                    <option value="javascript">JavaScript</option>
+                                                </select>
+                                            </div>
+                                            <button id="runCodeBtn" class="btn-primary" style="padding:6px 14px; font-size:0.8rem; background:rgba(255,255,255,0.08); box-shadow:none; border:1px solid var(--border-color);">
+                                                Run Compilation
+                                            </button>
+                                        </div>
+                                        <div id="monacoEditorContainer" class="editor-container"></div>
+                                        <div class="console-panel" style="height:150px;">
+                                            <div style="font-weight:bold; margin-bottom:6px; color:var(--text-muted);">Sandbox Console:</div>
+                                            <pre id="consoleOutput">Waiting for compilation run...</pre>
+                                        </div>
+                                    </div>
+
+                                    <!-- MCQ options panel -->
+                                    <div id="mcqOptionsPanel" style="display:none; padding:24px; flex-direction:column; gap:16px;">
+                                        <h3>Select an Option:</h3>
+                                        <div id="mcqOptionsContainer" style="display:flex; flex-direction:column; gap:12px; margin-top:10px;">
+                                            <!-- Injected via app.js -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </main>
+
+                        <!-- Right Sidebar: Question metadata, notes and telemetry warnings -->
+                        <aside class="sidebar-right">
+                            <div class="glass-panel" style="padding:16px; margin-bottom:16px; flex:1; display:flex; flex-direction:column;">
+                                <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-size:0.85rem;">
+                                    <span id="roundStageLabel" style="font-weight:bold; color:var(--primary);">ROUND: MCQ</span>
+                                    <span id="timerLabel" style="font-family:monospace; color:var(--warning); font-weight:bold; font-size:1.05rem;">45:00</span>
+                                </div>
+                                <h3 id="currentQuestionTitle" style="margin-bottom:8px; font-size:1.1rem;">Question Title</h3>
+                                <div id="currentQuestionBody" style="font-size:0.9rem; line-height:1.6; color:var(--text-muted); margin-bottom:20px; overflow-y:auto; flex:1;">
+                                    Analyzing metrics...
+                                </div>
+                                <button id="submitAnswerBtn" class="btn-primary" style="width:100%;">
+                                    Submit Current Answer
+                                </button>
+                            </div>
+
+                            <!-- User Notes -->
+                            <div class="glass-panel" style="padding:16px; height:180px; display:flex; flex-direction:column; gap:8px;">
+                                <h4>Scratch Notes</h4>
+                                <textarea id="scratchNotesArea" placeholder="Type design formulas or query templates here..." style="width:100%; flex:1; background:rgba(0,0,0,0.2); border:1px solid var(--border-color); color:var(--text-main); border-radius:6px; padding:8px; font-size:0.85rem; resize:none;"></textarea>
+                            </div>
+                        </aside>
+                    </div>
+
+                    <!-- Bottom controls control-bar -->
+                    <div class="bottom-control-bar">
+                        <!-- Left indicators -->
+                        <div class="control-group">
+                            <span style="font-size:0.85rem; color:var(--text-muted);">Connected: <b id="candidateNameLabel">Jane Doe</b></span>
+                        </div>
+
+                        <!-- Center control triggers -->
+                        <div class="control-group">
+                            <button id="toggleMicBtn" class="control-btn active" title="Mute/Unmute Mic">🎙️</button>
+                            <button id="toggleCamBtn" class="control-btn active" title="On/Off Camera">📹</button>
+                            <button id="shareScreenBtn" class="control-btn" title="Screen Share">🖥️</button>
+                            <button id="chatBtn" class="control-btn" title="Toggle Chat Drawer">💬</button>
+                            <button id="uploadAttachBtn" class="control-btn" title="Upload Attachments">📎</button>
+                            <button id="raiseHandBtn" class="control-btn" title="Raise Hand">✋</button>
+                            <button id="fullscreenBtn" class="control-btn" title="Toggle Fullscreen">📺</button>
+                        </div>
+
+                        <!-- Right leave action -->
+                        <div class="control-group">
+                            <button id="leaveInterviewBtn" class="control-btn danger" style="width:auto; padding:0 16px; font-size:0.85rem; font-weight:bold;" title="Leave Interview Session">Leave</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW 4: Recruiter Evaluation Dashboard -->
             <section id="dashboardScreen" class="screen">
                 <div class="dashboard-grid">
                     
@@ -152,7 +256,7 @@
                     <div class="glass-panel card-summary">
                         <h3 style="border-bottom:1px solid var(--border-color); padding-bottom:10px;">Candidate Scorecard</h3>
                         
-                        <div class="radial-score-wrapper" style="border: 4px solid var(--primary);">
+                        <div class="radial-score-wrapper" style="border: 4px solid var(--primary); margin: 20px auto;">
                             <span id="overallScoreText" class="score-text">8.8</span>
                         </div>
                         <div style="text-align:center; font-weight:bold; color:var(--success); margin-top:8px;">
@@ -206,6 +310,9 @@
             </section>
         </div>
     </div>
+
+    <!-- Toast Message Container -->
+    <div id="toastContainer"></div>
     
     <script src="app.js"></script>
 </body>
