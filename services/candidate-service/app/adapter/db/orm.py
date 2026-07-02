@@ -113,11 +113,23 @@ class InterviewSessionORM(Base):
     __tablename__ = "interview_sessions"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     application_id = Column(UUID(as_uuid=True), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False)
+    interview_plan_id = Column(UUID(as_uuid=True), ForeignKey("interview_plans.id", ondelete="CASCADE"), nullable=True)
     session_token = Column(String(512), unique=True, nullable=False)
     status = Column(String(50), default="PENDING", nullable=False)
     started_at = Column(DateTime(timezone=True))
     ended_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    interview_plan = relationship("InterviewPlanORM")
+    runtime_state = relationship("SessionRuntimeStateORM", back_populates="interview_session", uselist=False, cascade="all, delete-orphan")
+    state_histories = relationship("StateHistoryORM", back_populates="interview_session", cascade="all, delete-orphan")
+    round_progress = relationship("RoundProgressORM", back_populates="interview_session", cascade="all, delete-orphan")
+    question_progress = relationship("QuestionProgressORM", back_populates="interview_session", cascade="all, delete-orphan")
+    events = relationship("RuntimeEventORM", back_populates="interview_session", cascade="all, delete-orphan")
+    timer_snapshots = relationship("TimerSnapshotORM", back_populates="interview_session", cascade="all, delete-orphan")
+    connection_logs = relationship("ConnectionLogORM", back_populates="interview_session", cascade="all, delete-orphan")
+    recovery_logs = relationship("RecoveryLogORM", back_populates="interview_session", cascade="all, delete-orphan")
 
 
 class RefreshTokenORM(Base):
@@ -641,3 +653,118 @@ class AdaptiveDecisionORM(Base):
 
     # Relationships
     interview_plan = relationship("InterviewPlanORM", back_populates="adaptive_decisions")
+
+
+class SessionRuntimeStateORM(Base):
+    __tablename__ = "session_runtime_states"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    interview_session_id = Column(UUID(as_uuid=True), ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False)
+    current_round_index = Column(Integer, default=0, server_default="0", nullable=False)
+    current_question_index = Column(Integer, default=0, server_default="0", nullable=False)
+    current_difficulty = Column(String(50), default="MEDIUM", server_default="MEDIUM", nullable=False)
+    current_score = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    remaining_time_seconds = Column(Integer, default=3600, server_default="3600", nullable=False)
+    connection_status = Column(String(50), default="DISCONNECTED", server_default="DISCONNECTED", nullable=False)
+    warnings_count = Column(Integer, default=0, server_default="0", nullable=False)
+    pause_count = Column(Integer, default=0, server_default="0", nullable=False)
+    reconnect_attempts = Column(Integer, default=0, server_default="0", nullable=False)
+    adaptive_decisions = Column(JSONB().with_variant(JSON, "sqlite"), default=[], nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    interview_session = relationship("InterviewSessionORM", back_populates="runtime_state")
+
+
+class StateHistoryORM(Base):
+    __tablename__ = "state_histories"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    interview_session_id = Column(UUID(as_uuid=True), ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False)
+    from_state = Column(String(50), nullable=False)
+    to_state = Column(String(50), nullable=False)
+    transitioned_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    interview_session = relationship("InterviewSessionORM", back_populates="state_histories")
+
+
+class RoundProgressORM(Base):
+    __tablename__ = "round_progress"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    interview_session_id = Column(UUID(as_uuid=True), ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False)
+    round_index = Column(Integer, default=0, server_default="0", nullable=False)
+    round_name = Column(String(255), nullable=False)
+    status = Column(String(50), default="PENDING", server_default="PENDING", nullable=False)
+    time_spent_seconds = Column(Integer, default=0, server_default="0", nullable=False)
+    score_awarded = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    interview_session = relationship("InterviewSessionORM", back_populates="round_progress")
+
+
+class QuestionProgressORM(Base):
+    __tablename__ = "question_progress"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    interview_session_id = Column(UUID(as_uuid=True), ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False)
+    round_index = Column(Integer, default=0, server_default="0", nullable=False)
+    question_index = Column(Integer, default=0, server_default="0", nullable=False)
+    difficulty = Column(String(50), nullable=False)
+    score = Column(Float().with_variant(Float(), "sqlite"), default=0.0, server_default="0.0", nullable=False)
+    time_spent_seconds = Column(Integer, default=0, server_default="0", nullable=False)
+    is_skipped = Column(Boolean, default=False, server_default="false", nullable=False)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    interview_session = relationship("InterviewSessionORM", back_populates="question_progress")
+
+
+class RuntimeEventORM(Base):
+    __tablename__ = "runtime_events"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    interview_session_id = Column(UUID(as_uuid=True), ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False)
+    event_type = Column(String(100), nullable=False)
+    message = Column(Text, nullable=False)
+    payload = Column(JSONB().with_variant(JSON, "sqlite"), default={}, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    interview_session = relationship("InterviewSessionORM", back_populates="events")
+
+
+class TimerSnapshotORM(Base):
+    __tablename__ = "timer_snapshots"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    interview_session_id = Column(UUID(as_uuid=True), ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False)
+    timer_name = Column(String(100), nullable=False)
+    elapsed_seconds = Column(Integer, default=0, server_default="0", nullable=False)
+    remaining_seconds = Column(Integer, default=0, server_default="0", nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    interview_session = relationship("InterviewSessionORM", back_populates="timer_snapshots")
+
+
+class ConnectionLogORM(Base):
+    __tablename__ = "connection_logs"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    interview_session_id = Column(UUID(as_uuid=True), ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False)
+    event = Column(String(100), nullable=False)
+    ip_address = Column(String(100), nullable=True)
+    user_agent = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    interview_session = relationship("InterviewSessionORM", back_populates="connection_logs")
+
+
+class RecoveryLogORM(Base):
+    __tablename__ = "recovery_logs"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    interview_session_id = Column(UUID(as_uuid=True), ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False)
+    attempt_number = Column(Integer, default=1, server_default="1", nullable=False)
+    success = Column(Boolean, default=False, server_default="false", nullable=False)
+    restored_elapsed_seconds = Column(Integer, default=0, server_default="0", nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    interview_session = relationship("InterviewSessionORM", back_populates="recovery_logs")
