@@ -10,8 +10,8 @@ from services.common.responses import make_success_response
 from services.common.exceptions import NotFoundException, UnauthorizedException
 from app.adapter.db.jd_intelligence_repo import JobIntelligenceRepository
 from app.adapter.db.document_repo import DocumentRepository
-from app.domain import jd_intelligence_models
-from app.domain.services.jd_intelligence_service import JobIntelligenceService, get_storage_provider
+from app.domain.services.jd_intelligence_service import JobIntelligenceService
+from app.domain.services.document_service import get_storage_provider
 
 logger = logging.getLogger(__name__)
 

@@ -25,6 +25,9 @@ app = FastAPI(
 # Centralized exception handlers registration
 register_exception_handlers(app)
 
+from app.delivery.http.orchestrator_router import router as orchestrator_router
+app.include_router(orchestrator_router, prefix="/api/v1")
+
 # Security and request logs middlewares
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(RateLimitMiddleware)
