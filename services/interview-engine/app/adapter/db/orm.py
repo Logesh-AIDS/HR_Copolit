@@ -447,3 +447,73 @@ class QuestionRetrievalLogORM(Base):
     retrieval_strategy = Column(String(100), nullable=False)
     latency_ms = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CodingProblemORM(Base):
+    __tablename__ = "coding_problems"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title = Column(String(255), nullable=False)
+    statement = Column(Text, nullable=False)
+    input_format = Column(Text, nullable=True)
+    output_format = Column(Text, nullable=True)
+    constraints = Column(Text, nullable=True)
+    time_limit_ms = Column(Integer, default=2000, server_default="2000", nullable=False)
+    memory_limit_bytes = Column(Integer, default=268435456, server_default="268435456", nullable=False)
+    reference_solution = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CodingTestCaseORM(Base):
+    __tablename__ = "coding_test_cases"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    problem_id = Column(UUID(as_uuid=True), ForeignKey("coding_problems.id", ondelete="CASCADE"), nullable=False)
+    input = Column(Text, nullable=False)
+    expected_output = Column(Text, nullable=False)
+    is_hidden = Column(Boolean, default=False, server_default="false", nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CodeSubmissionORM(Base):
+    __tablename__ = "code_submissions"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    question_attempt_id = Column(UUID(as_uuid=True), ForeignKey("question_attempts.id", ondelete="CASCADE"), nullable=False)
+    source_code = Column(Text, nullable=False)
+    language = Column(String(50), nullable=False)
+    test_cases_passed = Column(Integer, nullable=False)
+    total_test_cases = Column(Integer, nullable=False)
+    execution_time_ms = Column(Float, nullable=True)
+    memory_used_bytes = Column(Integer, nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CompilationLogORM(Base):
+    __tablename__ = "compilation_logs"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    submission_id = Column(UUID(as_uuid=True), ForeignKey("code_submissions.id", ondelete="CASCADE"), nullable=False)
+    logs = Column(Text, nullable=False)
+    success = Column(Boolean, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ExecutionResultORM(Base):
+    __tablename__ = "execution_results"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    submission_id = Column(UUID(as_uuid=True), ForeignKey("code_submissions.id", ondelete="CASCADE"), nullable=False)
+    test_case_id = Column(UUID(as_uuid=True), ForeignKey("coding_test_cases.id", ondelete="SET NULL"), nullable=True)
+    status = Column(String(50), nullable=False)
+    actual_output = Column(Text, nullable=True)
+    execution_time_ms = Column(Integer, nullable=True)
+    memory_used_bytes = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class QuestionAttemptORM(Base):
+    __tablename__ = "question_attempts"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False)
+    question_id = Column(UUID(as_uuid=True), ForeignKey("questions.id", ondelete="RESTRICT"), nullable=False)
+    time_spent_seconds = Column(Integer, default=0, server_default="0", nullable=False)
+    response_transcript = Column(Text, nullable=True)
+    auto_score = Column(Float, nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)

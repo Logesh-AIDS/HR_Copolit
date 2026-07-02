@@ -40,6 +40,9 @@ app.include_router(collaboration_router, prefix="/api/v1")
 from app.delivery.http.question_router import router as question_router
 app.include_router(question_router, prefix="/api/v1")
 
+from app.delivery.http.coding_router import router as coding_router
+app.include_router(coding_router, prefix="/api/v1")
+
 # Security and request logs middlewares
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(RateLimitMiddleware)
