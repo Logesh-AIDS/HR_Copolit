@@ -1,0 +1,1 @@
+"""Recruiter Platform App Module"""
