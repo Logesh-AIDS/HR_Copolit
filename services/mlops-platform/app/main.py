@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
+from app.delivery.http import dataset_router, experiment_router, model_router, training_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -19,7 +20,10 @@ app.add_middleware(
 def health_check():
     return {"status": "ok", "service": "mlops-platform"}
 
-# Routers will be included here later
+app.include_router(dataset_router.router, prefix=settings.API_V1_STR)
+app.include_router(experiment_router.router, prefix=settings.API_V1_STR)
+app.include_router(model_router.router, prefix=settings.API_V1_STR)
+app.include_router(training_router.router, prefix=settings.API_V1_STR)
 
 if __name__ == "__main__":
     import uvicorn
