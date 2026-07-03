@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
+from app.delivery.http import candidate_router, comparison_router, search_router, report_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -18,6 +19,11 @@ app.add_middleware(
 @app.get("/health")
 def health_check():
     return {"status": "ok", "service": "recruiter-platform"}
+
+app.include_router(candidate_router.router, prefix=settings.API_V1_STR)
+app.include_router(comparison_router.router, prefix=settings.API_V1_STR)
+app.include_router(search_router.router, prefix=settings.API_V1_STR)
+app.include_router(report_router.router, prefix=settings.API_V1_STR)
 
 if __name__ == "__main__":
     import uvicorn
