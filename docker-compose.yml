@@ -173,6 +173,25 @@ services:
       postgres:
         condition: service_healthy
 
+  observability-platform:
+    build:
+      context: .
+      dockerfile: services/observability-platform/Dockerfile
+    container_name: hr-copilot-observability-platform
+    ports:
+      - "8006:8006"
+    volumes:
+      - ./services/common:/workspace/services/common
+      - ./services/observability-platform:/workspace/services/observability-platform
+    environment:
+      - ENV=development
+      - DEBUG=True
+      - POSTGRES_URL=postgresql://hr_user:hr_password@postgres:5432/hr_copilot
+      - KAFKA_BROKER_URL=kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   minio:
     image: minio/minio:RELEASE.2023-09-30T07-02-29Z
     container_name: hr-copilot-minio
