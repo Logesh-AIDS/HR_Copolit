@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HR-Copilot — AI Interview Platform Prototype</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0a0e1a; --surface: #111827; --surface2: #1a2236;
+            --border: #1e293b; --primary: #6366f1; --primary-glow: rgba(99,102,241,0.3);
+            --success: #10b981; --warning: #f59e0b; --danger: #ef4444;
+            --text: #f1f5f9; --text-muted: #94a3b8; --text-dim: #64748b;
+            --gradient: linear-gradient(135deg, #6366f1, #8b5cf6, #a78bfa);
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+        .app { max-width: 1400px; margin: 0 auto; padding: 0 24px; }
+        
+        /* Header */
+        .header { display: flex; align-items: center; justify-content: space-between; padding: 20px 0; border-bottom: 1px solid var(--border); margin-bottom: 32px; }
+        .logo { display: flex; align-items: center; gap: 12px; }
+        .logo-mark { width: 42px; height: 42px; border-radius: 12px; background: var(--gradient); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; letter-spacing: -0.5px; }
+        .logo h1 { font-size: 1.4rem; font-weight: 700; background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .header-status { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-muted); }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success); animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        /* Cards */
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; transition: all 0.3s ease; position: relative; overflow: hidden; }
+        .card:hover { border-color: rgba(99,102,241,0.3); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+        .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--gradient); opacity: 0; transition: opacity 0.3s; }
+        .card:hover::before { opacity: 1; }
+        .card h3 { font-size: 1rem; font-weight: 600; margin-bottom: 8px; }
+        .card p { font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; }
+
+        /* Section titles */
+        .section-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-dim); margin-bottom: 16px; font-weight: 600; }
+        
+        /* Grid */
+        .grid-3 { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-bottom: 40px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 40px; }
+
+        /* Buttons */
+        .btn { padding: 10px 20px; border-radius: 10px; border: none; font-family: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-primary { background: var(--gradient); color: white; }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px var(--primary-glow); }
+        .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
+        .btn-outline:hover { border-color: var(--primary); background: rgba(99,102,241,0.08); }
+        .btn-sm { padding: 6px 14px; font-size: 0.78rem; border-radius: 8px; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+
+        /* Tags */
+        .tag { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.5px; }
+        .tag-green { background: rgba(16,185,129,0.15); color: var(--success); }
+        .tag-blue { background: rgba(99,102,241,0.15); color: var(--primary); }
+        .tag-yellow { background: rgba(245,158,11,0.15); color: var(--warning); }
+        .tag-red { background: rgba(239,68,68,0.15); color: var(--danger); }
+
+        /* Stats row */
+        .stats-row { display: flex; gap: 32px; margin-bottom: 40px; flex-wrap: wrap; }
+        .stat { text-align: center; }
+        .stat .num { font-size: 2rem; font-weight: 800; background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .stat .label { font-size: 0.75rem; color: var(--text-dim); margin-top: 4px; }
+
+        /* Service health indicators */
+        .service-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--surface2); border-radius: 10px; margin-bottom: 8px; }
+        .service-row .name { font-weight: 600; font-size: 0.85rem; flex: 1; }
+        .service-row .port { font-size: 0.75rem; color: var(--text-dim); font-family: monospace; }
+
+        /* Log console */
+        .console { background: #0d1117; border: 1px solid var(--border); border-radius: 12px; padding: 16px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.78rem; max-height: 320px; overflow-y: auto; line-height: 1.8; }
+        .console .log-line { display: flex; gap: 10px; }
+        .console .timestamp { color: var(--text-dim); min-width: 65px; }
+        .console .tag-log { min-width: 70px; }
+        .console .msg { color: var(--text-muted); }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 4px; margin-bottom: 20px; background: var(--surface2); padding: 4px; border-radius: 10px; width: fit-content; }
+        .tab { padding: 8px 18px; border-radius: 8px; font-size: 0.8rem; font-weight: 500; cursor: pointer; color: var(--text-muted); transition: all 0.2s; border: none; background: transparent; font-family: inherit; }
+        .tab.active { background: var(--primary); color: white; }
+        .tab:hover:not(.active) { color: var(--text); }
+
+        /* Panels */
+        .panel { display: none; }
+        .panel.active { display: block; }
+
+        /* Input */
+        .input { width: 100%; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-family: inherit; font-size: 0.85rem; outline: none; transition: border-color 0.2s; }
+        .input:focus { border-color: var(--primary); }
+        textarea.input { resize: vertical; min-height: 80px; }
+        .input-group { margin-bottom: 16px; }
+        .input-group label { display: block; font-size: 0.78rem; font-weight: 500; color: var(--text-muted); margin-bottom: 6px; }
+
+        /* Result card */
+        .result-card { background: var(--surface2); border-radius: 12px; padding: 20px; margin-top: 16px; border-left: 3px solid var(--primary); }
+        .score-bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-top: 6px; margin-bottom: 12px; }
+        .score-bar-fill { height: 100%; border-radius: 4px; background: var(--gradient); transition: width 1s ease; }
+
+        /* Loading shimmer */
+        .shimmer { background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 8px; height: 20px; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        /* Footer */
+        .footer { text-align: center; padding: 40px 0; border-top: 1px solid var(--border); margin-top: 40px; color: var(--text-dim); font-size: 0.8rem; }
+
+        @media (max-width: 768px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } .stats-row { gap: 20px; } }
+    </style>
+</head>
+<body>
+<div class="app">
+    <!-- HEADER -->
+    <div class="header">
+        <div class="logo">
+            <div class="logo-mark">HR</div>
+            <h1>HR-Copilot</h1>
+        </div>
+        <div class="header-status">
+            <span class="status-dot" id="globalStatusDot"></span>
+            <span id="globalStatusText">Checking services...</span>
+        </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="stats-row" id="statsRow">
+        <div class="stat"><div class="num" id="statServices">—</div><div class="label">Services Online</div></div>
+        <div class="stat"><div class="num" id="statTables">40+</div><div class="label">Database Tables</div></div>
+        <div class="stat"><div class="num" id="statEndpoints">60+</div><div class="label">API Endpoints</div></div>
+        <div class="stat"><div class="num" id="statTests">51</div><div class="label">Tests Passing</div></div>
+        <div class="stat"><div class="num" id="statLoc">15.4K</div><div class="label">Lines of Code</div></div>
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs">
+        <button class="tab active" onclick="switchTab('health')">🏥 Services Health</button>
+        <button class="tab" onclick="switchTab('evaluate')">🤖 AI Evaluation Demo</button>
+        <button class="tab" onclick="switchTab('coding')">💻 Code Sandbox Demo</button>
+        <button class="tab" onclick="switchTab('interview')">🎯 Interview Room</button>
+    </div>
+
+    <!-- PANEL 1: SERVICES HEALTH -->
+    <div class="panel active" id="panel-health">
+        <div class="section-title">Microservice Container Status</div>
+        <div class="grid-2">
+            <div>
+                <div class="service-row" id="svc-candidate">
+                    <span class="status-dot" style="background:var(--text-dim);box-shadow:none;"></span>
+                    <span class="name">Candidate Service</span>
+                    <span class="port">:8000</span>
+                    <span class="tag tag-yellow">checking</span>
+                </div>
+                <div class="service-row" id="svc-interview">
+                    <span class="status-dot" style="background:var(--text-dim);box-shadow:none;"></span>
+                    <span class="name">Interview Engine</span>
+                    <span class="port">:8003</span>
+                    <span class="tag tag-yellow">checking</span>
+                </div>
+                <div class="service-row" id="svc-grading">
+                    <span class="status-dot" style="background:var(--text-dim);box-shadow:none;"></span>
+                    <span class="name">Grading Service</span>
+                    <span class="port">:8002</span>
+                    <span class="tag tag-yellow">checking</span>
+                </div>
+                <div class="service-row" id="svc-sandbox">
+                    <span class="status-dot" style="background:var(--text-dim);box-shadow:none;"></span>
+                    <span class="name">Sandbox Runner (Rust)</span>
+                    <span class="port">:8001</span>
+                    <span class="tag tag-yellow">checking</span>
+                </div>
+            </div>
+            <div>
+                <div class="card">
+                    <h3>🔌 Infrastructure Containers</h3>
+                    <p style="margin-bottom:16px;">These backing services power the platform data layer.</p>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                        <span class="tag tag-green">PostgreSQL 15</span>
+                        <span class="tag tag-green">Redis 7</span>
+                        <span class="tag tag-green">MongoDB 6</span>
+                        <span class="tag tag-blue">Qdrant Vector DB</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section-title">Live API Discovery</div>
+        <div class="console" id="healthConsole">
+            <div class="log-line"><span class="timestamp">--:--</span><span class="tag-log"><span class="tag tag-blue">SYSTEM</span></span><span class="msg">Initializing service health checks...</span></div>
+        </div>
+    </div>
+
+    <!-- PANEL 2: AI EVALUATION DEMO -->
+    <div class="panel" id="panel-evaluate">
+        <div class="section-title">AI Answer Evaluation Engine — Live Demo</div>
+        <div class="grid-2">
+            <div>
+                <div class="card">
+                    <h3>📝 Simulate a Candidate Answer</h3>
+                    <p style="margin-bottom:16px;">Enter an answer to an interview question. The AI engine will evaluate it using semantic similarity, concept extraction, reasoning analysis, and rubric scoring.</p>
+                    <div class="input-group">
+                        <label>Interview Question</label>
+                        <input class="input" id="evalQuestion" value="Explain REST protocol and its benefits for distributed systems." readonly style="opacity:0.7;">
+                    </div>
+                    <div class="input-group">
+                        <label>Candidate's Answer</label>
+                        <textarea class="input" id="evalAnswer" rows="5" placeholder="Type a candidate answer here...">REST is a stateless architectural style that uses HTTP methods. It supports caching to reduce latency, enables horizontal scaling through stateless design, and provides clear resource-based URLs. The tradeoff is that REST can be less efficient than gRPC for internal service communication, but it's more widely understood and easier to debug. Alternative approaches include GraphQL for flexible queries.</textarea>
+                    </div>
+                    <button class="btn btn-primary" id="evalBtn" onclick="runEvaluation()">⚡ Evaluate with AI Engine</button>
+                </div>
+            </div>
+            <div>
+                <div class="card" id="evalResultCard" style="min-height:300px;">
+                    <h3>🧠 Evaluation Results</h3>
+                    <p id="evalPlaceholder">Click "Evaluate" to see the AI analysis...</p>
+                    <div id="evalResults" style="display:none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PANEL 3: CODE SANDBOX DEMO -->
+    <div class="panel" id="panel-coding">
+        <div class="section-title">Secure Code Sandbox — Live Execution</div>
+        <div class="grid-2">
+            <div>
+                <div class="card">
+                    <h3>💻 Write Code</h3>
+                    <p style="margin-bottom:16px;">Execute Python code in the isolated Rust sandbox runner with CPU/memory limits.</p>
+                    <div class="input-group">
+                        <label>Language</label>
+                        <select class="input" id="codeLang" style="padding:8px 14px;">
+                            <option value="python">Python 3</option>
+                            <option value="javascript">JavaScript</option>
+                            <option value="go">Go</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Source Code</label>
+                        <textarea class="input" id="codeSource" rows="8" style="font-family:'SF Mono','Fira Code',monospace;font-size:0.82rem;">import sys
+
+def two_sum(nums, target):
+    seen = {}
+    for i, n in enumerate(nums):
+        complement = target - n
+        if complement in seen:
+            return [seen[complement], i]
+        seen[n] = i
+    return []
+
+result = two_sum([2, 7, 11, 15], 9)
+print(result)</textarea>
+                    </div>
+                    <div class="input-group">
+                        <label>Standard Input (optional)</label>
+                        <input class="input" id="codeInput" value="" placeholder="stdin input">
+                    </div>
+                    <button class="btn btn-primary" id="codeRunBtn" onclick="runCode()">▶ Execute in Sandbox</button>
+                </div>
+            </div>
+            <div>
+                <div class="card" style="min-height:300px;">
+                    <h3>📤 Execution Output</h3>
+                    <div id="codeOutput">
+                        <p style="color:var(--text-dim);">Click "Execute" to run your code in the isolated sandbox...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PANEL 4: INTERVIEW ROOM -->
+    <div class="panel" id="panel-interview">
+        <div class="section-title">Professional Interview Room</div>
+        <div class="card" style="text-align:center;padding:48px;">
+            <h3 style="font-size:1.3rem;margin-bottom:12px;">🎥 Full Interview Room Experience</h3>
+            <p style="max-width:500px;margin:0 auto 24px;">Launch the complete interview room with Monaco code editor, video panels, whiteboard, chat, and real-time question delivery.</p>
+            <a href="index.html" class="btn btn-primary" style="text-decoration:none;">Launch Interview Room →</a>
+        </div>
+        <div class="grid-3" style="margin-top:24px;">
+            <div class="card">
+                <h3>📋 Resume Upload</h3>
+                <p>Upload PDF resumes, parsed by NLP pipelines into structured intelligence profiles with skill confidence scores.</p>
+            </div>
+            <div class="card">
+                <h3>🎯 AI Orchestrator</h3>
+                <p>Generates personalized interview blueprints matching candidate skills against job requirements with adaptive difficulty.</p>
+            </div>
+            <div class="card">
+                <h3>🔒 WebRTC Communication</h3>
+                <p>Real-time video/audio via SDP offer/answer exchange, ICE candidate routing, and connection statistics logging.</p>
+            </div>
+            <div class="card">
+                <h3>🖊️ Collaboration Tools</h3>
+                <p>Shared whiteboard, live chat with role labels, file upload registry, and recruiter-only notes panel.</p>
+            </div>
+            <div class="card">
+                <h3>❓ Question Intelligence</h3>
+                <p>Qdrant vector search for semantic question retrieval. Adaptive FSM scales difficulty up/down based on performance.</p>
+            </div>
+            <div class="card">
+                <h3>📊 Grading & PDF Reports</h3>
+                <p>ReportLab-generated PDF scorecards with skill matrices, hiring verdicts, and detailed question-by-question feedback.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        HR-Copilot AI Interview Platform • 15 Stages • 15,400+ Lines of Code • Built with FastAPI + PostgreSQL + Redis + Qdrant + Rust
+    </div>
+</div>
+
+<script>
+const API_CANDIDATE = 'http://127.0.0.1:8000';
+const API_INTERVIEW = 'http://127.0.0.1:8003';
+const API_GRADING   = 'http://127.0.0.1:8002';
+const API_SANDBOX   = 'http://127.0.0.1:8001';
+
+function switchTab(id) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById('panel-' + id).classList.add('active');
+}
+
+function now() { return new Date().toLocaleTimeString('en-US', {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'}); }
+
+function addLog(tag, tagClass, msg) {
+    const c = document.getElementById('healthConsole');
+    const d = document.createElement('div');
+    d.className = 'log-line';
+    d.innerHTML = `<span class="timestamp">${now()}</span><span class="tag-log"><span class="tag ${tagClass}">${tag}</span></span><span class="msg">${msg}</span>`;
+    c.appendChild(d);
+    c.scrollTop = c.scrollHeight;
+}
+
+function updateServiceRow(id, ok) {
+    const row = document.getElementById(id);
+    const dot = row.querySelector('.status-dot');
+    const tag = row.querySelector('.tag');
+    if (ok) {
+        dot.style.background = 'var(--success)';
+        dot.style.boxShadow = '0 0 8px var(--success)';
+        tag.className = 'tag tag-green';
+        tag.textContent = 'healthy';
+    } else {
+        dot.style.background = 'var(--danger)';
+        dot.style.boxShadow = '0 0 8px var(--danger)';
+        tag.className = 'tag tag-red';
+        tag.textContent = 'offline';
+    }
+}
+
+async function checkHealth(name, url, svcId) {
+    try {
+        addLog('PROBE', 'tag-blue', `Checking ${name} at ${url}/health ...`);
+        const r = await fetch(url + '/health', { signal: AbortSignal.timeout(3000) });
+        const d = await r.json();
+        addLog('OK', 'tag-green', `${name} → ${JSON.stringify(d)}`);
+        updateServiceRow(svcId, true);
+        return true;
+    } catch(e) {
+        addLog('FAIL', 'tag-red', `${name} → Connection refused or timeout`);
+        updateServiceRow(svcId, false);
+        return false;
+    }
+}
+
+async function runHealthChecks() {
+    addLog('SYSTEM', 'tag-blue', '━━━ Starting health probe sequence ━━━');
+    const results = await Promise.all([
+        checkHealth('Candidate Service', API_CANDIDATE, 'svc-candidate'),
+        checkHealth('Interview Engine',  API_INTERVIEW,  'svc-interview'),
+        checkHealth('Grading Service',   API_GRADING,    'svc-grading'),
+        checkHealth('Sandbox Runner',    API_SANDBOX,    'svc-sandbox'),
+    ]);
+    const online = results.filter(Boolean).length;
+    document.getElementById('statServices').textContent = online + '/4';
+    
+    const gDot = document.getElementById('globalStatusDot');
+    const gText = document.getElementById('globalStatusText');
+    if (online === 4) {
+        gDot.style.background = 'var(--success)'; gDot.style.boxShadow = '0 0 8px var(--success)';
+        gText.textContent = 'All systems operational';
+    } else if (online > 0) {
+        gDot.style.background = 'var(--warning)'; gDot.style.boxShadow = '0 0 8px var(--warning)';
+        gText.textContent = online + '/4 services online';
+    } else {
+        gDot.style.background = 'var(--danger)'; gDot.style.boxShadow = '0 0 8px var(--danger)';
+        gText.textContent = 'Services offline — run: docker compose up -d';
+    }
+    addLog('SYSTEM', 'tag-blue', `━━━ Health check complete: ${online}/4 online ━━━`);
+
+    // Try to discover API docs
+    if (results[0]) {
+        try {
+            addLog('SCAN', 'tag-blue', 'Fetching Candidate Service OpenAPI spec...');
+            const r = await fetch(API_CANDIDATE + '/openapi.json', { signal: AbortSignal.timeout(3000) });
+            const spec = await r.json();
+            const paths = Object.keys(spec.paths || {});
+            addLog('API', 'tag-green', `Candidate Service exposes ${paths.length} API paths`);
+            paths.slice(0, 8).forEach(p => addLog('ROUTE', 'tag-blue', `  → ${p}`));
+            if (paths.length > 8) addLog('ROUTE', 'tag-blue', `  ... and ${paths.length - 8} more`);
+        } catch(e) {}
+    }
+    if (results[1]) {
+        try {
+            addLog('SCAN', 'tag-blue', 'Fetching Interview Engine OpenAPI spec...');
+            const r = await fetch(API_INTERVIEW + '/openapi.json', { signal: AbortSignal.timeout(3000) });
+            const spec = await r.json();
+            const paths = Object.keys(spec.paths || {});
+            addLog('API', 'tag-green', `Interview Engine exposes ${paths.length} API paths`);
+            paths.slice(0, 8).forEach(p => addLog('ROUTE', 'tag-blue', `  → ${p}`));
+            if (paths.length > 8) addLog('ROUTE', 'tag-blue', `  ... and ${paths.length - 8} more`);
+        } catch(e) {}
+    }
+}
+
+async function runEvaluation() {
+    const btn = document.getElementById('evalBtn');
+    const answer = document.getElementById('evalAnswer').value.trim();
+    if (!answer) return alert('Please enter a candidate answer.');
+    
+    btn.disabled = true; btn.textContent = '⏳ Evaluating...';
+    document.getElementById('evalPlaceholder').style.display = 'none';
+    const rd = document.getElementById('evalResults');
+    rd.style.display = 'block';
+    rd.innerHTML = '<div class="shimmer" style="height:20px;margin-bottom:12px;"></div><div class="shimmer" style="height:20px;margin-bottom:12px;width:80%;"></div><div class="shimmer" style="height:20px;width:60%;"></div>';
+
+    try {
+        const r = await fetch(API_INTERVIEW + '/api/v1/evaluate/answer', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({
+                session_id: '00000000-0000-0000-0000-000000000001',
+                question_id: '00000000-0000-0000-0000-000000000002',
+                candidate_answer: answer
+            })
+        });
+        const d = await r.json();
+        const evalId = d?.data?.evaluation_id;
+        
+        if (evalId) {
+            const r2 = await fetch(API_INTERVIEW + '/api/v1/evaluate/answer/' + evalId);
+            const d2 = await r2.json();
+            const rep = d2.data;
+            
+            const overall = rep.overall_score || 0;
+            const pct = Math.round(overall * 10);
+            const color = overall >= 7 ? 'var(--success)' : overall >= 4 ? 'var(--warning)' : 'var(--danger)';
+            
+            rd.innerHTML = `
+                <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px;">
+                    <span style="font-size:2.2rem;font-weight:800;color:${color};">${overall}</span>
+                    <span style="color:var(--text-dim);font-size:0.9rem;">/10.0 Overall Score</span>
+                </div>
+                <div class="score-bar"><div class="score-bar-fill" style="width:${pct}%;"></div></div>
+                
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0;">
+                    <div class="result-card" style="border-left-color:var(--primary);">
+                        <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:4px;">Accuracy</div>
+                        <div style="font-weight:700;">${rep.rubrics?.accuracy ?? '—'}/10</div>
+                    </div>
+                    <div class="result-card" style="border-left-color:var(--success);">
+                        <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:4px;">Completeness</div>
+                        <div style="font-weight:700;">${rep.rubrics?.completeness ?? '—'}/10</div>
+                    </div>
+                    <div class="result-card" style="border-left-color:var(--warning);">
+                        <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:4px;">Depth</div>
+                        <div style="font-weight:700;">${rep.rubrics?.depth ?? '—'}/10</div>
+                    </div>
+                    <div class="result-card" style="border-left-color:#8b5cf6;">
+                        <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:4px;">Clarity</div>
+                        <div style="font-weight:700;">${rep.rubrics?.clarity ?? '—'}/10</div>
+                    </div>
+                </div>
+
+                <div style="margin-top:12px;">
+                    <div style="font-size:0.78rem;font-weight:600;margin-bottom:6px;">📊 Semantic Similarity</div>
+                    <div style="font-size:0.82rem;color:var(--text-muted);">Model: ${rep.similarity?.embedding_model || 'TF-IDF'} • Cosine: ${(rep.similarity?.cosine_similarity || 0).toFixed(3)}</div>
+                </div>
+
+                <div style="margin-top:12px;">
+                    <div style="font-size:0.78rem;font-weight:600;margin-bottom:6px;">🧩 Concepts Matched (${(rep.concepts_coverage||[]).filter(c=>c.status==='COVERED').length}/${(rep.concepts_coverage||[]).length})</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                        ${(rep.concepts_coverage||[]).map(c => `<span class="tag ${c.status==='COVERED'?'tag-green':'tag-red'}">${c.concept_name}</span>`).join('')}
+                    </div>
+                </div>
+
+                <div style="margin-top:12px;">
+                    <div style="font-size:0.78rem;font-weight:600;margin-bottom:6px;">💡 Feedback</div>
+                    <div style="font-size:0.82rem;color:var(--text-muted);line-height:1.7;">
+                        <strong style="color:var(--success);">Strengths:</strong> ${rep.feedback?.strengths || '—'}<br>
+                        <strong style="color:var(--danger);">Weaknesses:</strong> ${rep.feedback?.weaknesses || '—'}<br>
+                        <strong style="color:var(--warning);">Improvements:</strong> ${rep.feedback?.improvements || '—'}
+                    </div>
+                </div>
+            `;
+        } else {
+            rd.innerHTML = `<div class="result-card"><p>Evaluation created. Response: ${JSON.stringify(d)}</p></div>`;
+        }
+    } catch(e) {
+        rd.innerHTML = `<div class="result-card" style="border-left-color:var(--danger);"><p style="color:var(--danger);">⚠️ Could not reach Interview Engine at :8003. Make sure containers are running.</p><p style="font-size:0.8rem;color:var(--text-dim);margin-top:8px;">${e.message}</p></div>`;
+    }
+    btn.disabled = false; btn.textContent = '⚡ Evaluate with AI Engine';
+}
+
+async function runCode() {
+    const btn = document.getElementById('codeRunBtn');
+    const code = document.getElementById('codeSource').value;
+    const lang = document.getElementById('codeLang').value;
+    const inp = document.getElementById('codeInput').value;
+    
+    btn.disabled = true; btn.textContent = '⏳ Executing...';
+    const out = document.getElementById('codeOutput');
+    out.innerHTML = '<div class="shimmer" style="height:20px;margin-bottom:12px;"></div><div class="shimmer" style="height:20px;width:70%;"></div>';
+
+    try {
+        const r = await fetch(API_INTERVIEW + '/api/v1/coding/run', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ code, language: lang, input_data: inp })
+        });
+        const d = await r.json();
+        const result = d.data || d;
+        
+        const hasError = result.compilation_error;
+        const output = result.output || '';
+        
+        out.innerHTML = `
+            <div class="result-card" style="border-left-color:${hasError ? 'var(--danger)' : 'var(--success)'};">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                    <span class="tag ${hasError ? 'tag-red' : 'tag-green'}">${hasError ? 'COMPILATION ERROR' : 'SUCCESS'}</span>
+                    <span class="tag tag-blue">${lang.toUpperCase()}</span>
+                </div>
+                ${hasError 
+                    ? `<pre style="color:var(--danger);font-family:monospace;font-size:0.82rem;white-space:pre-wrap;">${result.compilation_error}</pre>`
+                    : `<div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:6px;">Standard Output:</div>
+                       <pre style="color:var(--success);font-family:'SF Mono','Fira Code',monospace;font-size:0.9rem;padding:12px;background:#0d1117;border-radius:8px;white-space:pre-wrap;">${output || '(no output)'}</pre>`
+                }
+                ${result.limits_exceeded ? '<p style="color:var(--warning);margin-top:8px;">⚠️ Resource limits exceeded (CPU/Memory timeout)</p>' : ''}
+            </div>
+        `;
+    } catch(e) {
+        out.innerHTML = `<div class="result-card" style="border-left-color:var(--danger);"><p style="color:var(--danger);">⚠️ Could not reach sandbox or interview engine.</p><p style="font-size:0.8rem;color:var(--text-dim);margin-top:8px;">${e.message}</p></div>`;
+    }
+    btn.disabled = false; btn.textContent = '▶ Execute in Sandbox';
+}
+
+// Boot
+window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(runHealthChecks, 500);
+});
+</script>
+</body>
+</html>

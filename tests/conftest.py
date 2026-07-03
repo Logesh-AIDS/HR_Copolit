@@ -10,6 +10,8 @@ TEST_DATABASE_URL = "sqlite:///./test.db"
 
 @pytest.fixture(scope="session")
 def db_engine():
+    import services.candidate_service.app.adapter.db.orm
+    import services.interview_engine.app.adapter.db.orm
     engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
     Base.metadata.create_all(bind=engine)
     yield engine

@@ -46,6 +46,8 @@ app.include_router(coding_router, prefix="/api/v1")
 from app.delivery.http.evaluation_router import router as evaluation_router
 app.include_router(evaluation_router, prefix="/api/v1")
 
+from app.delivery.http.multimodal_router import router as multimodal_router
+app.include_router(multimodal_router)
 # Security and request logs middlewares
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(RateLimitMiddleware)

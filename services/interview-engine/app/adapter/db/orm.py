@@ -1,7 +1,7 @@
 # services/interview-engine/app/adapter/db/orm.py
 import uuid
-from sqlalchemy import Column, String, Integer, Float, Boolean, Text, DateTime, ForeignKey, JSON
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Column, String, Integer, Float, Boolean, Text, DateTime, ForeignKey, JSON, Numeric
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from services.common.database import Base
@@ -587,4 +587,37 @@ class ScoreHistoryORM(Base):
     updated_score = Column(Float, nullable=False)
     changer_role = Column(String(50), nullable=False)
     reason = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class MultimodalModelsMetadataORM(Base):
+    __tablename__ = "multimodal_models_metadata"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    model_name = Column(String(255), nullable=False)
+    model_type = Column(String(100), nullable=False)
+    version = Column(String(50), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class MultimodalTimelineEventORM(Base):
+    __tablename__ = "multimodal_timeline_events"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False)
+    event_type = Column(String(100), nullable=False)
+    timestamp = Column(DateTime(timezone=True), nullable=False)
+    details = Column(JSONB().with_variant(JSON, "sqlite"), default={}, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class MultimodalFeatureStoreORM(Base):
+    __tablename__ = "multimodal_feature_store"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False)
+    feature_name = Column(String(100), nullable=False)
+    feature_value = Column(Numeric(10, 4), nullable=False)
+    feature_source = Column(String(100), nullable=False)
+    confidence = Column(Numeric(5, 4), nullable=True)
+    model_version = Column(String(50), nullable=True)
+    timestamp = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

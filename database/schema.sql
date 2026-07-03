@@ -117,3 +117,40 @@ CREATE INDEX IF NOT EXISTS idx_sessions_token ON interview_sessions(session_toke
 CREATE INDEX IF NOT EXISTS idx_attempts_session ON question_attempts(session_id);
 CREATE INDEX IF NOT EXISTS idx_submissions_attempt ON code_submissions(question_attempt_id);
 CREATE INDEX IF NOT EXISTS idx_proctor_session ON proctoring_logs(session_id);
+
+-- Multimodal Models Metadata
+CREATE TABLE IF NOT EXISTS multimodal_models_metadata (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    model_name VARCHAR(255) NOT NULL,
+    model_type VARCHAR(100) NOT NULL,
+    version VARCHAR(50) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- Multimodal Timeline Events
+CREATE TABLE IF NOT EXISTS multimodal_timeline_events (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id UUID REFERENCES interview_sessions(id) ON DELETE CASCADE NOT NULL,
+    event_type VARCHAR(100) NOT NULL,
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    details JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- Multimodal Feature Store
+CREATE TABLE IF NOT EXISTS multimodal_feature_store (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id UUID REFERENCES interview_sessions(id) ON DELETE CASCADE NOT NULL,
+    feature_name VARCHAR(100) NOT NULL,
+    feature_value NUMERIC(10, 4) NOT NULL,
+    feature_source VARCHAR(100) NOT NULL,
+    confidence NUMERIC(5, 4),
+    model_version VARCHAR(50),
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_multimodal_timeline_session ON multimodal_timeline_events(session_id);
+CREATE INDEX IF NOT EXISTS idx_multimodal_feature_session ON multimodal_feature_store(session_id);
+CREATE INDEX IF NOT EXISTS idx_multimodal_feature_name ON multimodal_feature_store(feature_name);
