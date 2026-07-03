@@ -46,6 +46,13 @@ class CommonSettings(BaseSettings):
     LOCAL_STORAGE_DIR: str = Field(default="./storage", validation_alias="LOCAL_STORAGE_DIR")
     MAX_FILE_SIZE_MB: int = Field(default=10, validation_alias="MAX_FILE_SIZE_MB")
 
+    # Infrastructure Services
+    KAFKA_BROKER_URL: str = Field(default="localhost:9092", validation_alias="KAFKA_BROKER_URL")
+    ELASTICSEARCH_URL: str = Field(default="http://localhost:9200", validation_alias="ELASTICSEARCH_URL")
+    MINIO_ENDPOINT: str = Field(default="localhost:9000", validation_alias="MINIO_ENDPOINT")
+    MINIO_ACCESS_KEY: str = Field(default="minioadmin", validation_alias="MINIO_ACCESS_KEY")
+    MINIO_SECRET_KEY: str = Field(default="minioadmin", validation_alias="MINIO_SECRET_KEY")
+
     # Model Config
     model_config = SettingsConfigDict(
         env_file=".env",
